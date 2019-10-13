@@ -27,23 +27,30 @@ def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
 
     PAIRS = 8
     CAMERAS = {
-            'NorthWest': ('x-axis', ('y-axis', 'positive'), 'close', 1), 'NorthEast': ('x-axis', ('y-axis', 'positive'), 'close', 1),
-            'EastNorth': ('y-axis',  ('x-axis', 'positive'), 'far', 2), 'EastSouth': ('y-axis',  ('x-axis', 'positive'), 'far', 2),
-            'SouthEast': ('x-axis', ('y-axis', 'negative'), 'far', 3), 'SouthWest': ('x-axis', ('y-axis', 'negative'), 'far', 3),
-            'WestSouth': ('y-axis',  ('x-axis', 'negative'), 'close', 4), 'WestNorth': ('y-axis',  ('x-axis', 'negative'), 'close', 4)
+            'NorthWest': (('x-axis', 'close'), ('y-axis', 'positive'), 1),  'NorthEast': (('x-axis', 'close'), ('y-axis', 'positive'), 1),
+            'EastNorth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),   'EastSouth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),
+            'SouthEast': (('x-axis', 'far'), ('y-axis', 'negative'), 3),    'SouthWest': (('x-axis', 'far'), ('y-axis', 'negative'), 3),
+            'WestSouth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4)
     }
+    
+    # 'CameraName': (
+        # (Axis with visable negative and positive side, Location of positive side relative to origin and new origin),
+        # (Axis with one side, direction visable), Direction of the visable side),
+        # North->1; East->2; South->3; West->4
+    # )
 
+    # Label points
     axis_vectors = dict.fromkeys(CAMERAS)
     for camera, axis in CAMERAS.items():
         cam_img = image_dict[camera]
         
         axis_vectors[camera] = (
-            {direction: [get_coord(cam_img, n=1, title=get_title(axis[0], istip, direction)) for istip in (True, False)] for direction in ('positive', 'negative')},
+            {direction: [get_coord(cam_img, n=1, title=get_title(axis[0][0], istip, direction)) for istip in (True, False)] for direction in ('positive', 'negative')},
             [get_coord(cam_img, n=1, title=get_title(axis[1][0], istip, axis[1][1])) for istip in (True, False)],
             [get_coord(cam_img, n=1, title=get_title('z-axis', istip, 'positive')) for istip in (True, False)]
         )
 
-    stereo_cam_units = {}    
+    stereo_cam_units = {}
     camera_names = tuple(CAMERAS.keys())
     for i in range(PAIRS):
         cam1 = camera_names[i]
@@ -51,12 +58,13 @@ def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
         pair = (cam1, cam2)
         print('Calculating the basis vectors of {}'.format(pair))
 
+        # Preparing for triangualting image coordinates
         raw_cam1v = axis_vectors[cam1]
         raw_cam2v = axis_vectors[cam2]
-        if CAMERAS[cam1][3] == CAMERAS[cam2][3]:
-            i, ii, iii = CAMERAS[cam1][0], CAMERAS[cam1][1][0], 'z-axis'
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            i, ii, iii = CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis'
             assert CAMERAS[cam1] == CAMERAS[cam2]
-            unit_keys = ((CAMERAS[cam1][0], 'positive'), CAMERAS[cam1][1], 'z-axis')
+            unit_keys = ((CAMERAS[cam1][0][0], 'positive'), CAMERAS[cam1][1], 'z-axis')
 
             cam1v = (
                 raw_cam1v[0]['positive'][0], raw_cam1v[0]['negative'][0],   # NorthNorth: x-axis
@@ -71,7 +79,7 @@ def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
         else:
             # Corner
             assert CAMERAS[cam1][1][0] == CAMERAS[cam2][0]
-            assert CAMERAS[cam1][0] == CAMERAS[cam2][1][0]
+            assert CAMERAS[cam1][0][0] == CAMERAS[cam2][1][0]
             unit_keys = (CAMERAS[cam1][1], CAMERAS[cam2][1], 'z-axis')
 
             cam1v = (
@@ -89,9 +97,9 @@ def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
             config_dict[pair], cam1_coords=cam1v, cam2_coords=cam2v
         )
 
-        if CAMERAS[cam1][3] == CAMERAS[cam2][3]:
-            axis_2nd_name = 'y-axis' if CAMERAS[cam1][0] == 'x-axis' else 'x-axis'
-            if CAMERAS[cam1][2] == 'close':
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
+            if CAMERAS[cam1][0][1] == 'close':
                 origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
                 z_axis = unit_vector(trian[3] - origin)
                 axis_1st = unit_vector(trian[0] - origin)
@@ -133,13 +141,13 @@ def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
                 alt_axis_2nd = origin - trian[2]
                 
         stereo_cam_units[pair] = {
-            CAMERAS[cam1][0]: axis_1st,
+            CAMERAS[cam1][0][0]: axis_1st,
             axis_2nd_name: axis_2nd,
             'z-axis': z_axis
         }
         
-        print('\nCross product derived {axis_2nd_name} basis: {cross}\n' \
-        'Origin-subtraction derived {axis_2nd_name} basis: {orig}\n' \
+        print('\nCross product derived {axis_2nd_name}: {cross}\n' \
+        'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
         'Ration between cross and orig: {ratio}\n'.format(
             axis_2nd_name=axis_2nd_name,
             cross=stereo_cam_units[pair][axis_2nd_name],
