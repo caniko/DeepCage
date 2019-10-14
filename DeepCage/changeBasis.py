@@ -2,53 +2,39 @@ from numpy.linalg import solve
 import numpy as np
 
 from copy import copy
+import pickle
 import os
 
-from .utils import get_coord, unit_vector, get_title, get_stereo_cam_2d_units
-from .triangualte import triangulate_raw_2d_camera_coords
+from .constants import CAMERAS, PAIRS
+from .auxilaryFunc import read_config
+from .utils import get_coord, unit_vector, get_title, basis_label
+from .triangulate import triangulate_raw_2d_camera_coords
 
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
-def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
+def get_cage_basis(config, dlc3d_configs, pixel_tolerance=2, save_path=None):
     '''
     Parameters
     ----------
-    config_dict : dict
-        Dictionary where the key is name of the stereo camera pair, and the value is the full path of the config.yaml file
-    image_dict : dict
-        Dictionary where the key is name of the camera, and the value is the full path to the image
-        of the referance points taken with the camera
-    camera_pairs : list-like
-        List of cameras that are pairs. Pairs usually have their own deeplabcut 3D project
+    config : string
+        String containing the full path of the project config.yaml file.
     pixel_tolerance : integer, float; default 2
         Defines the floor-tolerance for setting basis vector after coordinate components being set to 0. After being moved to the origin
     '''
-
-    PAIRS = 8
-    CAMERAS = {
-            'NorthWest': (('x-axis', 'close'), ('y-axis', 'positive'), 1),  'NorthEast': (('x-axis', 'close'), ('y-axis', 'positive'), 1),
-            'EastNorth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),   'EastSouth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),
-            'SouthEast': (('x-axis', 'far'), ('y-axis', 'negative'), 3),    'SouthWest': (('x-axis', 'far'), ('y-axis', 'negative'), 3),
-            'WestSouth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4)
-    }
     
-    # 'CameraName': (
-        # (Axis with visable negative and positive side, Location of positive side relative to origin and new origin),
-        # (Axis with one side, direction visable), Direction of the visable side),
-        # North->1; East->2; South->3; West->4
-    # )
-
-    # Label points
-    axis_vectors = dict.fromkeys(CAMERAS)
-    for camera, axis in CAMERAS.items():
-        cam_img = image_dict[camera]
-        
-        axis_vectors[camera] = (
-            {direction: [get_coord(cam_img, n=1, title=get_title(axis[0][0], istip, direction)) for istip in (True, False)] for direction in ('positive', 'negative')},
-            [get_coord(cam_img, n=1, title=get_title(axis[1][0], istip, axis[1][1])) for istip in (True, False)],
-            [get_coord(cam_img, n=1, title=get_title('z-axis', istip, 'positive')) for istip in (True, False)]
-        )
+    # Read config file and prepare variables
+    cfg = read_config(config)
+    label_path = os.path.join(cfg['data_path'], 'labels.pickle')
+    dlc3d_configs = os.path.realpath(cfg['dlc3d_configs'])
+    
+    # Get labels
+    try:
+        with open(label_path, 'rb') as infile:
+            axis_vectors = pickle.load(infile)
+    except FileNotFoundError:
+        msg = 'Could not find labels in {}\nThe label process has either not been performed, or was not successful'.format(label_path)
+        raise FileNotFoundError(msg)
 
     stereo_cam_units = {}
     camera_names = tuple(CAMERAS.keys())
@@ -94,7 +80,7 @@ def get_cage_basis(config_dict, image_dict, pixel_tolerance=2, save_path=None):
             )
 
         trian = triangulate_raw_2d_camera_coords(
-            config_dict[pair], cam1_coords=cam1v, cam2_coords=cam2v
+            dlc3d_configs[pair], cam1_coords=cam1v, cam2_coords=cam2v
         )
 
         if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
@@ -192,14 +178,14 @@ def change_basis(coord_matrix, origin, x, y, z):
     )
 
 
-def get_basis(config_dict, image_dict, camera_pairs, user_defined_axis=['x', 'z'], pixel_tolerance=2):
+def get_basis(dlc3d_configs, image_paths, camera_pairs, user_defined_axis=['x', 'z'], pixel_tolerance=2):
     '''
     Parameters
     ----------
-    config_dict : dict
+    dlc3d_configs : dict
         Dictionary where the key is name of the camera, and the value is the full path of the config.yaml file
         as a string.
-    image_dict : dict
+    image_paths : dict
         Dictionary where the key is name of the camera, and the value is the full path to the image
         of the referance points taken with the camera
     camera_pairs : list-like
@@ -221,8 +207,8 @@ def get_basis(config_dict, image_dict, camera_pairs, user_defined_axis=['x', 'z'
             msg = 'Invalid axis name, {}. Valid names: {}'.format(axis_name, VALID_AXIS_NAMES)
             raise ValueError(msg)
             
-    cam_coords = dict.fromkeys(image_dict)
-    for cam_name, cam_img in image_dict.items():
+    cam_coords = dict.fromkeys(image_paths)
+    for cam_name, cam_img in image_paths.items():
         cam_coords[cam_name] = []
         max_i = len(coord_labels) - 1
         for coord_name in coord_labels:
@@ -233,7 +219,7 @@ def get_basis(config_dict, image_dict, camera_pairs, user_defined_axis=['x', 'z'
     basis_dict = dict.fromkeys(coord_labels)
     for cam1_name, cam2_name in camera_pairs:
         coords = triangulate_raw_2d_camera_coords(
-            config_dict[(cam1_name, cam2_name)],
+            dlc3d_configs[(cam1_name, cam2_name)],
             cam1_coords=cam_coords[cam1_name],
             cam2_coords=cam_coords[cam2_name],
             unit_keys=coord_labels

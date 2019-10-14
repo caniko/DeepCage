@@ -1,14 +1,18 @@
 import numpy as np
+import pickle
 import cv2
 import os
 
-from deeplabcut import auxiliaryfunctions, auxiliaryfunctions_3d
+from deeplabcut.utils import auxiliaryfunctions_3d
 
+from .auxilaryFunc import read_config
 from .utils import get_coord
 
 
 def triangulate_raw_2d_camera_coords(config, cam1_coords=None, cam2_coords=None, cam1_image=None, cam2_image=None, unit_keys=None):
     """
+    Augmented deeplabcut.triangulate() for DeepCage workflow
+    
     This function triangulates user-defined coordinates from the two camera views using the camera matrices (derived from calibration) to calculate 3D predictions.
     Optionally, the user can define the coordiantes from images.
     
@@ -80,17 +84,17 @@ def triangulate_raw_2d_camera_coords(config, cam1_coords=None, cam2_coords=None,
             msg = "Coordinate-array has an invalid format"
             raise ValueError(msg)
 
-    cfg_3d = auxiliaryfunctions.read_config(config)
+    cfg_3d = read_config(config)
     img_path, path_corners, path_camera_matrix, path_undistort = auxiliaryfunctions_3d.Foldernames3Dproject(cfg_3d)
 
     cam_names = cfg_3d['camera_names']
     camera_pair_key = cam_names[0]+'-'+cam_names[1]
 
     # Create an empty dataFrame to store the undistorted 2d coordinates and likelihood
-    stereo_file = auxiliaryfunctions.read_pickle(os.path.join(path_camera_matrix, 'stereo_params.pickle'))
-    stereo_file = auxiliaryfunctions.read_pickle(
-        os.path.join(path_camera_matrix,'stereo_params.pickle')
-    )
+    stereo_path = os.path.join(path_camera_matrix, 'stereo_params.pickle')
+    with open(stereo_path, 'rb') as infile:
+        stereo_file = pickle.load(infile)
+
     mtx_l = stereo_file[camera_pair_key]['cameraMatrix1']
     dist_l = stereo_file[camera_pair_key]['distCoeffs1']
 
