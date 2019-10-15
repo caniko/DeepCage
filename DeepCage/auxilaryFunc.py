@@ -90,7 +90,7 @@ def read_config(config_path):
 
     return cfg
 
-def create_dc_project(name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None):
+def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
     
@@ -99,11 +99,11 @@ def create_dc_project(name, experimenter, dlc_project_config, dlc3d_project_conf
 
     Parameters
     ----------
-    name : str
-        String containing the name of the project.
+    project_name : str
+        String containing the project_name of the project.
 
     experimenter : str
-        String containing the name of the experimenter/scorer.
+        String containing the project_name of the experimenter/scorer.
 
     dlc_project_config : str
         String containing the full path to the DeepLabCut project config.yaml file.
@@ -139,7 +139,7 @@ def create_dc_project(name, experimenter, dlc_project_config, dlc3d_project_conf
         working_directory = '.'
     working_directory = Path(working_directory).resolve()
     project_name = '{pn}-{exp}-{date}'.format(
-        pn=name,
+        pn=project_name,
         exp=experimenter,
         date=dt.today().strftime('%Y-%m-%d')
     )
@@ -166,7 +166,7 @@ def create_dc_project(name, experimenter, dlc_project_config, dlc3d_project_conf
     # Set values to config file:
     cfg_file, ruamelFile = create_config_template()
     cfg_file
-    cfg_file['Task'] = name
+    cfg_file['Task'] = project_name
     cfg_file['scorer'] = experimenter
     cfg_file['date'] = date
 
