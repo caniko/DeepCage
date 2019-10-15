@@ -9,7 +9,7 @@ from .auxilaryFunc import read_config
 from .utils import get_coord
 
 
-def triangulate_raw_2d_camera_coords(config, cam1_coords=None, cam2_coords=None, cam1_image=None, cam2_image=None, unit_keys=None):
+def triangulate_raw_2d_camera_coords(config_path, cam1_coords=None, cam2_coords=None, cam1_image=None, cam2_image=None, unit_keys=None):
     """
     Augmented deeplabcut.triangulate() for DeepCage workflow
     
@@ -22,7 +22,7 @@ def triangulate_raw_2d_camera_coords(config, cam1_coords=None, cam2_coords=None,
 
     Parameters
     ----------
-    config : string
+    config_path : string
         Full path of the config.yaml file as a string.
     cam1_image : string; default None
         Full path of the image of camera 1 as a string.
@@ -38,15 +38,15 @@ def triangulate_raw_2d_camera_coords(config, cam1_coords=None, cam2_coords=None,
     Example
     -------
     To analyze a set of coordinates:
-    >>> deeplabcut.triangulate_raw_2d_camera_coords(config, cam1_coords=((1, 2), (20, 50), ...), cam2_coords=((3, 5), (14, 2), ...) )
+    >>> deeplabcut.triangulate_raw_2d_camera_coords(config_path, cam1_coords=((1, 2), (20, 50), ...), cam2_coords=((3, 5), (14, 2), ...) )
 
     Linux/MacOS
     To analyze a set of images in a directory:
-    >>> deeplabcut.triangulate_raw_2d_camera_coords(config, cam1_image='/image_directory/cam1.png', cam2_image='/image_directory/cam2.png')
+    >>> deeplabcut.triangulate_raw_2d_camera_coords(config_path, cam1_image='/image_directory/cam1.png', cam2_image='/image_directory/cam2.png')
     
     Windows
     To analyze a set of images in a directory:
-    >>> deeplabcut.triangulate_raw_2d_camera_coords(config, cam1_image='<drive_letter>:\\<image_directory>\\cam1.png', cam2_image='\\image_directory\\cam2.png')
+    >>> deeplabcut.triangulate_raw_2d_camera_coords(config_path, cam1_image='<drive_letter>:\\<image_directory>\\cam1.png', cam2_image='\\image_directory\\cam2.png')
 
     """
     # if ((cam1_coords is None and cam2_coords is None) and (cam1_image is None and cam2_image is None)) or (
@@ -84,7 +84,7 @@ def triangulate_raw_2d_camera_coords(config, cam1_coords=None, cam2_coords=None,
             msg = "Coordinate-array has an invalid format"
             raise ValueError(msg)
 
-    cfg_3d = read_config(config)
+    cfg_3d = read_config(config_path)
     img_path, path_corners, path_camera_matrix, path_undistort = auxiliaryfunctions_3d.Foldernames3Dproject(cfg_3d)
 
     cam_names = cfg_3d['camera_names']

@@ -1,4 +1,5 @@
 from numpy.linalg import solve
+import pandas as pd
 import numpy as np
 
 from copy import copy
@@ -13,22 +14,23 @@ from .triangulate import triangulate_raw_2d_camera_coords
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
-def get_cage_basis(config, pixel_tolerance=2, save_path=None):
+def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     '''
     Parameters
     ----------
-    config : string
+    config_path : string
         String containing the full path of the project config.yaml file.
     pixel_tolerance : integer, float; default 2
         Defines the floor-tolerance for setting basis vector after coordinate components being set to 0. After being moved to the origin
     '''
     
     # Read config file and prepare variables
-    cfg = read_config(config)
-    label_path = os.path.join(cfg['data_path'], 'labels.pickle')
+    cfg = read_config(config_path)
     dlc3d_configs = os.path.realpath(cfg['dlc3d_configs'])
-    
+    data_path = os.path.realpath(cfg['data_path'])
+
     # Get labels
+    label_path = os.path.join(data_path, 'labels.pickle')
     try:
         with open(label_path, 'rb') as infile:
             axis_vectors = pickle.load(infile)
@@ -36,6 +38,7 @@ def get_cage_basis(config, pixel_tolerance=2, save_path=None):
         msg = 'Could not find labels in {}\nThe label process has either not been performed, or was not successful'.format(label_path)
         raise FileNotFoundError(msg)
 
+    linear_maps = {}
     stereo_cam_units = {}
     camera_names = tuple(CAMERAS.keys())
     for i in range(PAIRS):
@@ -100,7 +103,7 @@ def get_cage_basis(config, pixel_tolerance=2, save_path=None):
                 alt_axis_2nd = origin - trian[2]
             else:
                 alt_axis_2nd = trian[2] - origin
-            
+
         else:
             # Corner
             first_axis_linev = unit_vector(trian[1] - trian[0])
@@ -125,23 +128,34 @@ def get_cage_basis(config, pixel_tolerance=2, save_path=None):
                 alt_axis_2nd = trian[2] - origin
             else:
                 alt_axis_2nd = origin - trian[2]
-                
-        stereo_cam_units[pair] = {
-            CAMERAS[cam1][0][0]: axis_1st,
-            axis_2nd_name: axis_2nd,
-            'z-axis': z_axis
-        }
-        
+
+        stereo_cam_units[(pair, CAMERAS[cam1][0][0])] = axis_1st
+        stereo_cam_units[(pair, axis_2nd_name)] = axis_2nd
+        stereo_cam_units[(pair, 'alt_%s' % axis_2nd_name)] = copy(alt_axis_2nd)
+        stereo_cam_units[(pair, 'z-axis')] = z_axis
+
+        linear_maps[pair] = np.array((axis_1st, axis_2nd, z_axis)).T
+
         print('\nCross product derived {axis_2nd_name}: {cross}\n' \
         'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
         'Ration between cross and orig: {ratio}\n'.format(
             axis_2nd_name=axis_2nd_name,
-            cross=stereo_cam_units[pair][axis_2nd_name],
+            cross=stereo_cam_units[(pair, axis_2nd_name)],
             orig=alt_axis_2nd,
-            ratio=stereo_cam_units[pair][axis_2nd_name] / alt_axis_2nd
+            ratio=stereo_cam_units[(pair, axis_2nd_name)] / alt_axis_2nd
         ))
 
-    return stereo_cam_units
+    linear_map_path = os.path.join(data_path, 'CB_linear_maps.pickle')
+    with open(linear_map_path, 'wb') as outfile:
+        pickle.dump(linear_maps, outfile)
+        print('Saved linear map to:\n{}'.format(linear_map_path))
+
+    dataframe_path = os.path.join(data_path, 'basis_vectors.xlsx')
+    pd.DataFrame.from_dict(stereo_cam_units).to_excel(dataframe_path)
+    print('Saved excel file containing the computed basis vectors to:\n{}'.format(dataframe_path))
+
+    print('Returning dictionary containing the computed linear maps')
+    return linear_maps
 
 
 def change_basis(coord_matrix, origin, x, y, z):
