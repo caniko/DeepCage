@@ -13,7 +13,7 @@ from .triangulate import triangulate_raw_2d_camera_coords
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
-def get_cage_basis(config, dlc3d_configs, pixel_tolerance=2, save_path=None):
+def get_cage_basis(config, pixel_tolerance=2, save_path=None):
     '''
     Parameters
     ----------
