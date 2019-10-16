@@ -3,7 +3,48 @@ from glob import glob
 from pathlib import Path
 import ruamel.yaml
 
+import pandas as pd
+
 from .constants import CAMERAS
+
+
+def detect_triangulation_result(config_path):
+    cfg = read_config(config_path)
+    dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
+    data_path = os.path.realpath(cfg['data_path'])
+
+    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+    with open(basis_result_path, 'rb') as infile:
+        linear_maps, origin = *pickle.load(infile)
+
+    # Detect triangulation results in related DeepLabCut 3D projects
+    data_files = {}
+    roi_ids = None
+    for camera, config_path in dlc3d_configs.items():
+        data_path = os.path.join(
+            os.path.join(os.path.dirname(config_path), 'videos'),
+            '*%s' % suffix
+        )
+        for dfile in glob(data_path):
+            dfile_pd = pd.read_hdf(os.path.realpath(dfile))['DLC_3D']
+            if dfile not in data_files:
+                data_files[dfile] = {camera: dfile_pd}
+            else:
+                data_files[dfile][camera] = dfile_pd
+    
+    # Analyse the number of occurances of data file
+    lengths = []
+    for dfile, cases in data_files.items():
+        c_length = len(cases)
+        
+        if len(lengths) != 0 and all(i > c_length for i in lengths):
+            warn('%s seems to be missing from one or more of the DeepLabCut 3D folder' % dfile)
+        lengths.append(c_length)
+
+    roi_ids = pd.read_hdf('0_DLC_3D.h5')['DLC_3D'].columns.levels[0]
+
+    for camera, config_path in dlc3d_configs.items():
+        new_coords[camera] = change_basis_func()
 
 
 def detect_images(config_path):
@@ -181,11 +222,6 @@ def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_proj
     # Write dictionary to yaml config file
     write_config(conf_path, cfg_file)
 
-    print('Generated "{}"'.format(project_path / 'config.yaml'))
-    print(
-        '\nA new project with name %s is created at %s and a configurable file (config.yaml) is stored there.' \
-        'Change the parameters in this file with respect to the project.\n' \
-        % (project_name, str(working_directory))
-    )
+    print('\nThe project has been created, and is located at:\n%s' % project_path)
 
     return conf_path

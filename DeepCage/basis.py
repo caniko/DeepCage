@@ -2,14 +2,16 @@ from numpy.linalg import solve
 import pandas as pd
 import numpy as np
 
+from warnings import warn
 from copy import copy
+from glob import glob
 import pickle
 import os
 
 from .constants import CAMERAS, PAIRS
 from .auxilaryFunc import read_config
 from .utils import get_coord, unit_vector, get_title, basis_label
-from .triangulate import triangulate_raw_2d_camera_coords
+from .triangulate import triangulate_raw_2d_camera_coords, change_basis_func
 
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
@@ -26,7 +28,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     
     # Read config file and prepare variables
     cfg = read_config(config_path)
-    dlc3d_configs = os.path.realpath(cfg['dlc3d_configs'])
+    dlc3d_configs = cfg['dlc3d_configs']
     data_path = os.path.realpath(cfg['data_path'])
 
     # Get labels
@@ -38,6 +40,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
         msg = 'Could not find labels in {}\nThe label process has either not been performed, or was not successful'.format(label_path)
         raise FileNotFoundError(msg)
 
+    origins = {}
     linear_maps = {}
     stereo_cam_units = {}
     camera_names = tuple(CAMERAS.keys())
@@ -135,20 +138,21 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
         stereo_cam_units[(pair, 'z-axis')] = z_axis
 
         linear_maps[pair] = np.array((axis_1st, axis_2nd, z_axis)).T
+        origins[pair] = origin
 
         print('\nCross product derived {axis_2nd_name}: {cross}\n' \
         'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
-        'Ration between cross and orig: {ratio}\n'.format(
+        'Ration between cross and origing: {ratio}\n'.format(
             axis_2nd_name=axis_2nd_name,
             cross=stereo_cam_units[(pair, axis_2nd_name)],
             orig=alt_axis_2nd,
             ratio=stereo_cam_units[(pair, axis_2nd_name)] / alt_axis_2nd
         ))
 
-    linear_map_path = os.path.join(data_path, 'CB_linear_maps.pickle')
-    with open(linear_map_path, 'wb') as outfile:
-        pickle.dump(linear_maps, outfile)
-        print('Saved linear map to:\n{}'.format(linear_map_path))
+    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+    with open(basis_result_path, 'wb') as outfile:
+        pickle.dump((linear_maps, origin), outfile)
+        print('Saved linear map to:\n{}'.format(basis_result_path))
 
     dataframe_path = os.path.join(data_path, 'basis_vectors.xlsx')
     pd.DataFrame.from_dict(stereo_cam_units).to_excel(dataframe_path)
@@ -158,38 +162,8 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     return linear_maps
 
 
-def change_basis(coord_matrix, origin, x, y, z):
-    '''
-    This function changes the basis of deeplabcut-triangulated that are 3D.
-    
-    Note: Two out of three axis should be defined. The third axis is the normal vector
-
-    Parameters
-    ----------
-    coord_matrix : numpy.array
-        A 3D matrix that stores the coordinates row-wise
-    origin : numpy.array-like
-        A 3D row vector, that represents the origin
-    x : numpy.array-like; default None
-        A 3D row vector, that represents the basis of the new x axis
-    y : numpy.array-like; default None
-        A 3D row vector, that represents the basis of the new y axis
-    z : numpy.array-like; default None
-        A 3D row vector, that represents the basis of the new z axis
-
-    Example
-    -------
-    >>> deeplabcut.change_of_basis(coord_matrix, origin=(1, 4.2, 3), x=(2.4, 0, 0), y=(0,  5.3, 0), z=(1, 0, 4.1))
-
-    '''
-    transform_matrix = np.array((x, y, z))
-    origin = np.asarray(origin)
-
-    # Change basis, and return result
-    return np.apply_along_axis(
-        lambda v: np.dot(transform_matrix, v - origin),
-        1, coord_matrix
-    )
+def change_basis(config_path, suffix='_DLC_3D.h5'):
+    return
 
 
 def get_basis(dlc3d_configs, image_paths, camera_pairs, user_defined_axis=['x', 'z'], pixel_tolerance=2):

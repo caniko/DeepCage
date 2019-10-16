@@ -11,7 +11,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 # https://www.python.org/dev/peps/pep-0440/
 
 setup(
-    name='deepcage',
+    name='DeepCage',
     version='0.1',
     description='Package used for extending DeepLabCut to support several',
     long_description=long_description,

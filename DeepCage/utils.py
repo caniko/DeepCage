@@ -10,6 +10,32 @@ from .constants import CAMERAS, PAIRS
 from .auxilaryFunc import read_config, detect_images
 
 
+def change_basis_func(coord_matrix, linear_map, origin):
+    '''
+    This function changes the basis of deeplabcut-triangulated that are 3D.
+
+    Parameters
+    ----------
+    coord_matrix : numpy.array
+        A 3D matrix that stores the coordinates row-wise
+    linear_map : numpy.array
+        (3, 3) array that stores the linear map for changing basis
+    origin : numpy.array-like
+        A 3D row vector, that represents the origin
+
+    Example
+    -------
+    >>> deeplabcut.change_of_basis(coord_matrix, linear_map, origin=(1, 4.2, 3))
+
+    '''
+    origin = np.asarray(origin)
+
+    # Change basis, and return result
+    return np.apply_along_axis(
+        lambda v: np.dot(linear_map, v - origin),
+        1, coord_matrix
+    )
+
 def basis_label(config_path, image_paths=None):
     '''
     Parameters
