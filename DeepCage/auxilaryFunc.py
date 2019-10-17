@@ -3,12 +3,14 @@ from glob import glob
 from pathlib import Path
 import ruamel.yaml
 
+from warnings import warn
 import pandas as pd
 
+from .basis import change_basis
 from .constants import CAMERAS
 
 
-def detect_triangulation_result(config_path):
+def detect_triangulation_result(config_path, suffix='_DLC_3D.h5'):
     cfg = read_config(config_path)
     dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
     data_path = os.path.realpath(cfg['data_path'])
@@ -31,20 +33,24 @@ def detect_triangulation_result(config_path):
                 data_files[dfile] = {camera: dfile_pd}
             else:
                 data_files[dfile][camera] = dfile_pd
+            
+            this_roi_ids = dfile_pd.columns.levels[0]
+            if roi_ids is not None:
+                msg = 'The regions of interest across the projects are not identical:\n%s: %s\nRest: %s' % (
+                    camera, this_roi_ids, roi_ids
+                )
+                assert (roi_ids == this_roi_ids, msg)
+            else:
+                roi_ids = this_roi_ids
     
     # Analyse the number of occurances of data file
-    lengths = []
-    for dfile, cases in data_files.items():
-        c_length = len(cases)
-        
-        if len(lengths) != 0 and all(i > c_length for i in lengths):
-            warn('%s seems to be missing from one or more of the DeepLabCut 3D folder' % dfile)
-        lengths.append(c_length)
+    missing = {}
+    camera_names = set(CAMERAS.keys())
+    for dfile, case in data_files.items():
+        missing[dfile] = tuple(set(case.keys()).difference(camera_names))
 
-    roi_ids = pd.read_hdf('0_DLC_3D.h5')['DLC_3D'].columns.levels[0]
-
-    for camera, config_path in dlc3d_configs.items():
-        new_coords[camera] = change_basis_func()
+    if missing != 0:
+        print('There were %d inconsistancies where <id>%s files were missing from DeepLabCut 3D projects' % missing, suffix)
 
 
 def detect_images(config_path):
