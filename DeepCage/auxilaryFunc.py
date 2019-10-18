@@ -10,47 +10,61 @@ from .basis import change_basis
 from .constants import CAMERAS
 
 
-def detect_triangulation_result(config_path, suffix='_DLC_3D.h5'):
+def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
     cfg = read_config(config_path)
     dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
     data_path = os.path.realpath(cfg['data_path'])
 
-    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
-    with open(basis_result_path, 'rb') as infile:
-        linear_maps, origin = *pickle.load(infile)
-
     # Detect triangulation results in related DeepLabCut 3D projects
     data_files = {}
     roi_ids = None
-    for camera, config_path in dlc3d_configs.items():
-        data_path = os.path.join(
+    for pair, config_path in dlc3d_configs.items():
+        current_data_path = os.path.join(
             os.path.join(os.path.dirname(config_path), 'videos'),
             '*%s' % suffix
         )
-        for dfile in glob(data_path):
+        for dfile in glob(current_data_path):
             dfile_pd = pd.read_hdf(os.path.realpath(dfile))['DLC_3D']
             if dfile not in data_files:
-                data_files[dfile] = {camera: dfile_pd}
+                data_files[dfile] = {pair: dfile_pd}
             else:
-                data_files[dfile][camera] = dfile_pd
+                data_files[dfile][pair] = dfile_pd
             
             this_roi_ids = dfile_pd.columns.levels[0]
             if roi_ids is not None:
                 msg = 'The regions of interest across the projects are not identical:\n%s: %s\nRest: %s' % (
-                    camera, this_roi_ids, roi_ids
+                    pair, this_roi_ids, roi_ids
                 )
                 assert (roi_ids == this_roi_ids, msg)
             else:
                 roi_ids = this_roi_ids
     
     # Analyse the number of occurances of data file
-    missing = {}
-    camera_names = set(CAMERAS.keys())
+    missing = 0
+    status = {}
+    pair_names = set(dlc3d_configs.keys())
     for dfile, case in data_files.items():
-        missing[dfile] = tuple(set(case.keys()).difference(camera_names))
+        pairs_with_hdf = set(case.keys())
+        missing[dfile] = tuple(pair_names.difference(pairs_with_hdf))
+        for pair in missing[dfile]:
+            status[(dfile, pair)] = '-'
+            missing += 1
+        for pair in pairs_with_hdf:
+            status[(dfile, pair)] = 'X'
+        
 
-    if missing != 0:
-        print('There were %d inconsistancies where <id>%s files were missing from DeepLabCut 3D projects' % missing, suffix)
+    if len(missing) != 0:
+        save_path = os.path.join(data_path, 'missing_hdf.xlsx')
+        pd.DataFrame.from_dict(status).to_excel(save_path)
+        print('There are %d files missing. An overview of the inconsistencies have been saved:\n%s\n' % save_path)
+        return False
+    else:
+        print('Triangulations files detected, and verified')
+        if change_basis is True:
+            print('Proceeding to changing basis')
+            return data_files
+        else:
+            print('The current DeepCage project is ready for changing basis')
 
 
 def detect_images(config_path):
@@ -132,7 +146,7 @@ def read_config(config_path):
                     cfg = yaml.load(ymlfile, Loader=yaml.SafeLoader)
                     write_config(config_path,cfg)
     else:
-        msg = "Config file is not found. Please make sure that the file in the path exists"
+        msg = "Config file is not pairs_with_hdf. Please make sure that the file in the path exists"
         raise FileNotFoundError (msg)
 
     return cfg

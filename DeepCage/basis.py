@@ -8,10 +8,11 @@ from glob import glob
 import pickle
 import os
 
-from .constants import CAMERAS, PAIRS
-from .auxilaryFunc import read_config
+from .auxilaryFunc import read_config, detect_triangulation_result
 from .utils import get_coord, unit_vector, get_title, basis_label
 from .triangulate import triangulate_raw_2d_camera_coords, change_basis_func
+
+from .constants import CAMERAS, PAIRS
 
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
@@ -30,6 +31,17 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     cfg = read_config(config_path)
     dlc3d_configs = cfg['dlc3d_configs']
     data_path = os.path.realpath(cfg['data_path'])
+
+    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+    dataframe_path = os.path.join(data_path, 'basis_vectors.xlsx')
+    if os.path.exists(basis_result_path) and os.path.exists(dataframe_path):
+        msg = 'Please remove old analysis files before proceeding. File paths:\n%s\n%s\n' % (
+            basis_result_path, dataframe_path
+        )
+    elif os.path.exists(basis_result_path):
+        msg = 'Please remove old analysis file before proceeding. File paths:\n%s\n' % basis_result_path
+    elif os.path.exists(dataframe_path):
+        msg = 'Please remove old analysis file before proceeding. File paths:\n%s\n' % dataframe_path
 
     # Get labels
     label_path = os.path.join(data_path, 'labels.pickle')
@@ -149,12 +161,10 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
             ratio=stereo_cam_units[(pair, axis_2nd_name)] / alt_axis_2nd
         ))
 
-    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
     with open(basis_result_path, 'wb') as outfile:
         pickle.dump((linear_maps, origin), outfile)
         print('Saved linear map to:\n{}'.format(basis_result_path))
 
-    dataframe_path = os.path.join(data_path, 'basis_vectors.xlsx')
     pd.DataFrame.from_dict(stereo_cam_units).to_excel(dataframe_path)
     print('Saved excel file containing the computed basis vectors to:\n{}'.format(dataframe_path))
 
@@ -162,7 +172,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     return linear_maps
 
 
-def change_basis_func(coord_matrix, linear_map, origin):
+def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -180,13 +190,37 @@ def change_basis_func(coord_matrix, linear_map, origin):
     >>> deeplabcut.change_of_basis(coord_matrix, linear_map, origin=(1, 4.2, 3))
 
     '''
-    origin = np.asarray(origin)
+    if suffix.split('.')[-1] != 'h5':
+        msg = 'Invalid file extension in suffix: %s' % suffix
+        raise ValueError(msg)
 
-    # Change basis, and return result
-    return np.apply_along_axis(
-        lambda v: np.dot(linear_map, v - origin),
-        1, coord_matrix
-    )
+    coordinate_files = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
+    if coordinate_files is False:
+        print('According to the DeepCage result detection algorithm this project is not ready for changing basis')
+        return False
+
+    cfg = read_config(config_path)
+    data_path = os.path.realpath(cfg['data_path'])
+    dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
+
+    if linear_maps is None:
+        basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+        with open(basis_result_path, 'rb') as infile:
+            linear_maps, origin = *pickle.load(infile)
+
+    pair_names = tuple(dlc3d_configs.keys())
+    new_coords = {}
+    for coord_set, pairs in coordinate_files.items():
+        new_coords[coord_set] = {}
+        for pair, dpath in pairs.items():
+            dfile_pd = pd.read_hdf(dpath)['DLC_3D']
+            rsoi = dfile_pd.columns.levels[0]
+            for roi in rsoi:
+                coords = pd.read_hdf(dpath)['DLC_3D'][roi].value
+                new_coords[coord_set][()] = change_basis_func()
+        
+    
+    return 
 
 
 def get_basis(dlc3d_configs, image_paths, camera_pairs, user_defined_axis=['x', 'z'], pixel_tolerance=2):
