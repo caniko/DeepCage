@@ -4,7 +4,7 @@ import numpy as np
 
 from collections import namedtuple
 from warnings import warn
-from copy import copy
+from copy import copy, deepcopy
 from glob import glob
 import pickle
 import os
@@ -192,9 +192,6 @@ def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
     -------
 
     '''
-    if suffix.split('.')[-1] != 'h5':
-        msg = 'Invalid file extension in suffix: %s' % suffix
-        raise ValueError(msg)
 
     coordinate_files = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
     if coordinate_files is False:
@@ -204,20 +201,40 @@ def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
     cfg = read_config(config_path)
     data_path = os.path.realpath(cfg['data_path'])
     dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
+    result_path = cfg_file['results_path']
+
+    if len(glob(os.path.join(result_path, '*.xlsx'))) or len(glob(os.path.join(result_path, '*.h5'))):
+        msg = 'The result folder needs to be empty. Path: {}'.format(result_path)
+        raise ValueError(msg)
 
     if linear_maps is None:
         basis_result_path = os.path.join(data_path, 'cb_result.pickle')
         with open(basis_result_path, 'rb') as infile:
             result = *pickle.load(infile)
 
-    coords = {}
-    for coord_set, pairs in coordinate_files.items():
-        for pair, dframe in pairs.items():
-            coords[pair] = {}
-            rsoi = dframe.columns.levels[0]
-            
-                
-        
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        new_basis = {}
+        for fname, pairs in coordinate_files.items():
+            new_basis[fname] = {}
+            for pair, rsoi in pairs.items():
+                for roi, dframe in rsoi.items():
+                    new_basis[fname][(roi, pair)] = executor.submit(change_basis_func, coord, result)
+
+        result = {}
+        for fname, infos in new_basis.items():
+            for info, future in zip(infos.keys(), concurrent.futures.as_completed(infos.values())):
+                try:
+                    result[fname][info] = future.result()
+                except Exception as exc:
+                    print('%r generated an exception: %s' % (info, exc))
+                else:
+                    print('%r page is %d bytes' % (info, result[fname][info].shape))
+
+    for fname, infos in result.items():
+        hdf_path = os.path.join(result_path, fname)
+        pd.DataFrame.from_dict(infos).to_hdf()
+    
+
     
     return 
 

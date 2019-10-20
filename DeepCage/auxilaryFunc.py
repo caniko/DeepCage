@@ -29,26 +29,34 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
 
     '''
 
+    if suffix.split('.')[-1] != 'h5':
+        msg = 'Invalid file extension in suffix: %s' % suffix
+        raise ValueError(msg)
+
     cfg = read_config(config_path)
     dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
     data_path = os.path.realpath(cfg['data_path'])
 
     # Detect triangulation results in related DeepLabCut 3D projects
-    data_files = {}
-    roi_ids = None
     rsoi = None
+    dfile_instantance = {}
     for pair, config_path in dlc3d_configs.items():
         current_data_path = os.path.join(
             os.path.join(os.path.dirname(config_path), 'videos'),
             '*%s' % suffix
         )
-        data_files[dfile] = dict.fromkeys(current_data_path)
-        for dfile in glob(current_data_path):
+        data_files = glob(current_data_path)
+        for dfile in data_files:
+            
+
+
+        data_files[pair] = {}
+        for dfile in :
             dframe = pd.read_hdf(os.path.realpath(dfile))['DLC_3D']
 
             assert rsoi is None or rsoi == dframe.columns.levels[0]
             rsoi = dframe.columns.levels[0]
-            data_files[dfile][pair] = {roi: dframe[roi].values for roi in rsoi}
+            data_files[pair][dfile] = {roi: dframe[roi].values for roi in rsoi}
     
     # Analyse the number of occurances of data file
     missing = 0
