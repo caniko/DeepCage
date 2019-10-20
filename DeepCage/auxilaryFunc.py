@@ -3,6 +3,7 @@ from glob import glob
 from pathlib import Path
 import ruamel.yaml
 
+import concurrent.futures
 from warnings import warn
 import pandas as pd
 
@@ -11,6 +12,23 @@ from .constants import CAMERAS
 
 
 def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
+    '''
+    This function changes the basis of deeplabcut-triangulated that are 3D.
+
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    suffix : string
+        The suffix in the DeepLabCut 3D project triangualtion result storage files
+    change_basis : boolean
+        Boolean stating wether the function is within a change basis workflow
+
+    Example
+    -------
+
+    '''
+
     cfg = read_config(config_path)
     dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
     data_path = os.path.realpath(cfg['data_path'])
@@ -18,26 +36,19 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
     # Detect triangulation results in related DeepLabCut 3D projects
     data_files = {}
     roi_ids = None
+    rsoi = None
     for pair, config_path in dlc3d_configs.items():
         current_data_path = os.path.join(
             os.path.join(os.path.dirname(config_path), 'videos'),
             '*%s' % suffix
         )
+        data_files[dfile] = dict.fromkeys(current_data_path)
         for dfile in glob(current_data_path):
-            dfile_pd = pd.read_hdf(os.path.realpath(dfile))['DLC_3D']
-            if dfile not in data_files:
-                data_files[dfile] = {pair: dfile_pd}
-            else:
-                data_files[dfile][pair] = dfile_pd
-            
-            this_roi_ids = dfile_pd.columns.levels[0]
-            if roi_ids is not None:
-                msg = 'The regions of interest across the projects are not identical:\n%s: %s\nRest: %s' % (
-                    pair, this_roi_ids, roi_ids
-                )
-                assert (roi_ids == this_roi_ids, msg)
-            else:
-                roi_ids = this_roi_ids
+            dframe = pd.read_hdf(os.path.realpath(dfile))['DLC_3D']
+
+            assert rsoi is None or rsoi == dframe.columns.levels[0]
+            rsoi = dframe.columns.levels[0]
+            data_files[dfile][pair] = {roi: dframe[roi].values for roi in rsoi}
     
     # Analyse the number of occurances of data file
     missing = 0
@@ -84,6 +95,19 @@ def detect_images(config_path):
 
     return cam_image_paths
 
+
+def get_pairs(camera_names=CAMERAS):
+    num = len(camera_names)
+    pairs = []
+    for i in range():
+        cam1 = camera_names[i]
+        cam2 = camera_names[i+1] if i != num else camera_names[0]
+        pair = (cam1, cam2)
+        pairs.append(pair)
+        
+    return pairs
+
+
 def create_config_template():
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
@@ -112,6 +136,7 @@ def create_config_template():
 
     return (cfg_file, ruamelFile)
 
+
 def write_config(config_path, cfg):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
@@ -126,6 +151,7 @@ def write_config(config_path, cfg):
             cfg_file[key]=cfg[key]
 
         ruamelFile.dump(cfg_file, cf)
+
 
 def read_config(config_path):
     '''
@@ -150,6 +176,7 @@ def read_config(config_path):
         raise FileNotFoundError (msg)
 
     return cfg
+
 
 def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None):
     '''

@@ -3,10 +3,10 @@
 PAIRS = 8
 
 CAMERAS = {
-        'NorthWest': (('x-axis', 'close'), ('y-axis', 'positive'), 1),  'NorthEast': (('x-axis', 'close'), ('y-axis', 'positive'), 1),
-        'EastNorth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),   'EastSouth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),
-        'SouthEast': (('x-axis', 'far'), ('y-axis', 'negative'), 3),    'SouthWest': (('x-axis', 'far'), ('y-axis', 'negative'), 3),
-        'WestSouth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4)
+    'NorthWest': (('x-axis', 'close'), ('y-axis', 'positive'), 1),  'NorthEast': (('x-axis', 'close'), ('y-axis', 'positive'), 1),
+    'EastNorth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),   'EastSouth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),
+    'SouthEast': (('x-axis', 'far'), ('y-axis', 'negative'), 3),    'SouthWest': (('x-axis', 'far'), ('y-axis', 'negative'), 3),
+    'WestSouth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4)
 }
 
 # 'CameraName': (

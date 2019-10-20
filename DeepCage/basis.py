@@ -2,15 +2,16 @@ from numpy.linalg import solve
 import pandas as pd
 import numpy as np
 
+from collections import namedtuple
 from warnings import warn
 from copy import copy
 from glob import glob
 import pickle
 import os
 
-from .auxilaryFunc import read_config, detect_triangulation_result
-from .utils import get_coord, unit_vector, get_title, basis_label
-from .triangulate import triangulate_raw_2d_camera_coords, change_basis_func
+from .auxilaryFunc import read_config, get_pairs, detect_triangulation_result
+from .utils import get_coord, unit_vector, get_title, basis_label, change_basis_func
+from .triangulate import triangulate_raw_2d_camera_coords
 
 from .constants import CAMERAS, PAIRS
 
@@ -26,7 +27,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     pixel_tolerance : integer, float; default 2
         Defines the floor-tolerance for setting basis vector after coordinate components being set to 0. After being moved to the origin
     '''
-    
+
     # Read config file and prepare variables
     cfg = read_config(config_path)
     dlc3d_configs = cfg['dlc3d_configs']
@@ -52,14 +53,15 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
         msg = 'Could not find labels in {}\nThe label process has either not been performed, or was not successful'.format(label_path)
         raise FileNotFoundError(msg)
 
-    origins = {}
-    linear_maps = {}
+    unit = {'map': None, 'origin': None}
+
+    orig_map = {}
     stereo_cam_units = {}
     camera_names = tuple(CAMERAS.keys())
-    for i in range(PAIRS):
-        cam1 = camera_names[i]
-        cam2 = camera_names[i+1] if i != PAIRS else camera_names[0]
-        pair = (cam1, cam2)
+
+    pairs = get_pairs()
+    for pair in pairs:
+        cam1, cam2 = *pair
         print('Calculating the basis vectors of {}'.format(pair))
 
         # Preparing for triangualting image coordinates
@@ -131,7 +133,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
 
             origin = trian[0] + first_axis_linev * sol[0] + tangent_v * sol[2]/2
             z_axis = unit_vector(trian[4] - origin)
-            
+
             if CAMERAS[cam1][1][1] == 'positive':
                 axis_1st = unit_vector(trian[0] - origin)
                 axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
@@ -149,8 +151,9 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
         stereo_cam_units[(pair, 'alt_%s' % axis_2nd_name)] = copy(alt_axis_2nd)
         stereo_cam_units[(pair, 'z-axis')] = z_axis
 
-        linear_maps[pair] = np.array((axis_1st, axis_2nd, z_axis)).T
-        origins[pair] = origin
+        orig_map[pair] = copy(unit)
+        orig_map[pair]['map'] = np.array((axis_1st, axis_2nd, z_axis)).T
+        orig_map[pair]['origin'] = origin
 
         print('\nCross product derived {axis_2nd_name}: {cross}\n' \
         'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
@@ -162,14 +165,14 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
         ))
 
     with open(basis_result_path, 'wb') as outfile:
-        pickle.dump((linear_maps, origin), outfile)
+        pickle.dump(orig_map, outfile)
         print('Saved linear map to:\n{}'.format(basis_result_path))
 
     pd.DataFrame.from_dict(stereo_cam_units).to_excel(dataframe_path)
     print('Saved excel file containing the computed basis vectors to:\n{}'.format(dataframe_path))
 
     print('Returning dictionary containing the computed linear maps')
-    return linear_maps
+    return orig_map
 
 
 def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
@@ -178,16 +181,15 @@ def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
 
     Parameters
     ----------
-    coord_matrix : numpy.array
-        A 3D matrix that stores the coordinates row-wise
-    linear_map : numpy.array
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    linear_maps : {string: numpy.array}
         (3, 3) array that stores the linear map for changing basis
-    origin : numpy.array-like
-        A 3D row vector, that represents the origin
+    suffix : string
+        The suffix in the DeepLabCut 3D project triangualtion result storage files
 
     Example
     -------
-    >>> deeplabcut.change_of_basis(coord_matrix, linear_map, origin=(1, 4.2, 3))
 
     '''
     if suffix.split('.')[-1] != 'h5':
@@ -206,18 +208,15 @@ def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
     if linear_maps is None:
         basis_result_path = os.path.join(data_path, 'cb_result.pickle')
         with open(basis_result_path, 'rb') as infile:
-            linear_maps, origin = *pickle.load(infile)
+            result = *pickle.load(infile)
 
-    pair_names = tuple(dlc3d_configs.keys())
-    new_coords = {}
+    coords = {}
     for coord_set, pairs in coordinate_files.items():
-        new_coords[coord_set] = {}
-        for pair, dpath in pairs.items():
-            dfile_pd = pd.read_hdf(dpath)['DLC_3D']
-            rsoi = dfile_pd.columns.levels[0]
-            for roi in rsoi:
-                coords = pd.read_hdf(dpath)['DLC_3D'][roi].value
-                new_coords[coord_set][()] = change_basis_func()
+        for pair, dframe in pairs.items():
+            coords[pair] = {}
+            rsoi = dframe.columns.levels[0]
+            
+                
         
     
     return 
