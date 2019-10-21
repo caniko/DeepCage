@@ -11,81 +11,6 @@ from .basis import change_basis
 from .constants import CAMERAS
 
 
-def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
-    '''
-    This function changes the basis of deeplabcut-triangulated that are 3D.
-
-    Parameters
-    ----------
-    config_path : string
-        String containing the full path of the project config.yaml file.
-    suffix : string
-        The suffix in the DeepLabCut 3D project triangualtion result storage files
-    change_basis : boolean
-        Boolean stating wether the function is within a change basis workflow
-
-    Example
-    -------
-
-    '''
-
-    if suffix.split('.')[-1] != 'h5':
-        msg = 'Invalid file extension in suffix: %s' % suffix
-        raise ValueError(msg)
-
-    cfg = read_config(config_path)
-    dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
-    data_path = os.path.realpath(cfg['data_path'])
-
-    # Detect triangulation results in related DeepLabCut 3D projects
-    rsoi = None
-    dfile_instantance = {}
-    for pair, config_path in dlc3d_configs.items():
-        current_data_path = os.path.join(
-            os.path.join(os.path.dirname(config_path), 'videos'),
-            '*%s' % suffix
-        )
-        data_files = glob(current_data_path)
-        for dfile in data_files:
-            
-
-
-        data_files[pair] = {}
-        for dfile in :
-            dframe = pd.read_hdf(os.path.realpath(dfile))['DLC_3D']
-
-            assert rsoi is None or rsoi == dframe.columns.levels[0]
-            rsoi = dframe.columns.levels[0]
-            data_files[pair][dfile] = {roi: dframe[roi].values for roi in rsoi}
-    
-    # Analyse the number of occurances of data file
-    missing = 0
-    status = {}
-    pair_names = set(dlc3d_configs.keys())
-    for dfile, case in data_files.items():
-        pairs_with_hdf = set(case.keys())
-        missing[dfile] = tuple(pair_names.difference(pairs_with_hdf))
-        for pair in missing[dfile]:
-            status[(dfile, pair)] = '-'
-            missing += 1
-        for pair in pairs_with_hdf:
-            status[(dfile, pair)] = 'X'
-        
-
-    if len(missing) != 0:
-        save_path = os.path.join(data_path, 'missing_hdf.xlsx')
-        pd.DataFrame.from_dict(status).to_excel(save_path)
-        print('There are %d files missing. An overview of the inconsistencies have been saved:\n%s\n' % save_path)
-        return False
-    else:
-        print('Triangulations files detected, and verified')
-        if change_basis is True:
-            print('Proceeding to changing basis')
-            return data_files
-        else:
-            print('The current DeepCage project is ready for changing basis')
-
-
 def detect_images(config_path):
     '''
     Detect images in calibration_images folder, and return a dictionary with their paths
@@ -280,3 +205,80 @@ def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_proj
     print('\nThe project has been created, and is located at:\n%s' % project_path)
 
     return conf_path
+
+
+def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
+    '''
+    This function changes the basis of deeplabcut-triangulated that are 3D.
+
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    suffix : string
+        The suffix in the DeepLabCut 3D project triangualtion result storage files
+    change_basis : boolean
+        Boolean stating wether the function is within a change basis workflow
+
+    Example
+    -------
+
+    '''
+
+    suffix_split = suffix.split('.')
+    if len(suffix_split):
+        if suffix_split[-1] != 'h5':
+            msg = 'Invalid file extension in suffix: %s' % suffix
+            raise ValueError(msg)
+    else:
+        suffix = suffix + '.h5'
+
+    cfg = read_config(config_path)
+    dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
+    data_path = os.path.realpath(cfg['data_path'])
+
+    # Detect triangulation results in related DeepLabCut 3D projects
+    # Analyse the number of occurances of hdf across projects
+    rsoi = None
+    missing = 0
+    status = {}
+    coords = {}
+    pairs = set(get_pairs())
+    for pair, config_path in dlc3d_configs.items():
+        current_data_path = os.path.join(
+            os.path.join(os.path.dirname(config_path), 'videos'),
+            '*%s' % suffix
+        )
+        hdfs = glob(current_data_path)
+        for hdf in hdfs:
+            filename = os.path.basename(hdf)
+            dframe = pd.read_hdf(os.path.realpath(hdf))['DLC_3D']
+            current_rsoi = dframe.columns.levels[0]
+
+            msg = 'The dataframes do not hold data from the same experiment.\nConsensus: %s\n%s: %s' % (
+                rsoi, (pair, filename), current_rsoi
+            )
+            assert rsoi is None or rsoi == current_rsoi
+            rsoi = current_rsoi
+
+            coords[(pair, filename)] = {roi: dframe[roi].values for roi in rsoi}
+            status[(filename, pair)] = 'X'
+    
+        pairs_with_hdf = set(kt[1] for kt in status.keys())
+        missing = pairs.difference(pairs_with_hdf)
+        for pair in missing:
+            status[(filename, pair)] = '-'
+            missing += 1
+
+    if len(missing) != 0:
+        save_path = os.path.join(data_path, 'missing_hdf.xlsx')
+        pd.DataFrame.from_dict(status).to_excel(save_path)
+        print('There are %d files missing. An overview of the inconsistencies have been saved:\n%s\n' % save_path)
+        return False
+    else:
+        print('Triangulations files detected, and verified')
+        if change_basis is True:
+            print('Proceeding to changing basis')
+            return coords
+        else:
+            print('The current DeepCage project is ready for changing basis')

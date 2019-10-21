@@ -10,10 +10,9 @@ from .constants import CAMERAS, PAIRS
 from .auxilaryFunc import read_config, detect_images
 
 
-def change_basis_func(coord_matrix, parameters):
+def change_basis_func(coord_matrix, linear_map, origin):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
-
     Parameters
     ----------
     coord_matrix : numpy.array
@@ -22,25 +21,23 @@ def change_basis_func(coord_matrix, parameters):
         (3, 3) array that stores the linear map for changing basis
     origin : numpy.array-like
         A 3D row vector, that represents the origin
-
     Example
     -------
     >>> deeplabcut.change_of_basis(coord_matrix, linear_map, origin=(1, 4.2, 3))
-
     '''
+    origin = np.asarray(origin)
 
-    linear_map = parameters.linear_map
-    origin = np.asarray(parameters.origin)
-
+    assert origin.shape == (3,)
     assert len(coord_matrix.shape) == 2
     assert coord_matrix.shape[1] == 3
-    assert parameters.linear_map.shape == (3, 3)
+    assert linear_map.shape == (3, 3)
 
     # Change basis, and return result
     return np.apply_along_axis(
         lambda v: np.dot(linear_map, v - origin),
         1, coord_matrix
     )
+
 
 def basis_label(config_path, image_paths=None):
     '''
@@ -102,22 +99,3 @@ def remove_close_zero(vector, tol=1e-16):
 def unit_vector(vector):
     ''' Returns the unit vector of the vector. '''
     return vector / np.linalg.norm(vector)
-
-def UNSAFE_get_stereo_cam_2d_units(camera_2d_coords, sec_axis_positive_dir_coord):
-    units = {}
-    if sec_axis_positive_dir_coord == 'close':
-        origin = pos + (neg - pos) / 2
-        units = {
-            'x': (x - origin) / unit_vector(x - origin),
-            'z': (origin - z) / unit_vector(origin - z)
-        }
-        units['y'] = - np.cross(units['x'], units['z'])
-    else:
-        origin = neg + (pos - neg) / 2
-        units = {
-            'y': (origin - neg) / unit_vector(origin - neg),
-            'z': (origin - z) / unit_vector(origin - z)
-        }
-        units['x'] = np.cross(units['y'], units['z'])
-
-    return units

@@ -2,6 +2,7 @@ from numpy.linalg import solve
 import pandas as pd
 import numpy as np
 
+import concurrent.futures
 from collections import namedtuple
 from warnings import warn
 from copy import copy, deepcopy
@@ -152,8 +153,8 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
         stereo_cam_units[(pair, 'z-axis')] = z_axis
 
         orig_map[pair] = copy(unit)
-        orig_map[pair]['map'] = np.array((axis_1st, axis_2nd, z_axis)).T
         orig_map[pair]['origin'] = origin
+        orig_map[pair]['map'] = np.array((axis_1st, axis_2nd, z_axis)).T
 
         print('\nCross product derived {axis_2nd_name}: {cross}\n' \
         'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
@@ -175,7 +176,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
     return orig_map
 
 
-def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
+def change_basis(config_path, suffix='_DLC_3D.h5'):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -193,50 +194,57 @@ def change_basis(config_path, linear_maps=None, suffix='_DLC_3D.h5'):
 
     '''
 
-    coordinate_files = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
-    if coordinate_files is False:
+    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
+    if coords is False:
         print('According to the DeepCage result detection algorithm this project is not ready for changing basis')
         return False
 
     cfg = read_config(config_path)
     data_path = os.path.realpath(cfg['data_path'])
     dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
-    result_path = cfg_file['results_path']
+    result_path = cfg['results_path']
 
     if len(glob(os.path.join(result_path, '*.xlsx'))) or len(glob(os.path.join(result_path, '*.h5'))):
         msg = 'The result folder needs to be empty. Path: {}'.format(result_path)
         raise ValueError(msg)
 
-    if linear_maps is None:
-        basis_result_path = os.path.join(data_path, 'cb_result.pickle')
-        with open(basis_result_path, 'rb') as infile:
-            result = *pickle.load(infile)
+    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+    with open(basis_result_path, 'rb') as infile:
+        orig_map = pickle.load(infile)
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        new_basis = {}
-        for fname, pairs in coordinate_files.items():
-            new_basis[fname] = {}
-            for pair, rsoi in pairs.items():
-                for roi, dframe in rsoi.items():
-                    new_basis[fname][(roi, pair)] = executor.submit(change_basis_func, coord, result)
-
-        result = {}
-        for fname, infos in new_basis.items():
-            for info, future in zip(infos.keys(), concurrent.futures.as_completed(infos.values())):
-                try:
-                    result[fname][info] = future.result()
-                except Exception as exc:
-                    print('%r generated an exception: %s' % (info, exc))
-                else:
-                    print('%r page is %d bytes' % (info, result[fname][info].shape))
-
-    for fname, infos in result.items():
-        hdf_path = os.path.join(result_path, fname)
-        pd.DataFrame.from_dict(infos).to_hdf()
+        submissions = {}
+        for info, rsoi in coords.items():
+            pair, filename = *info
+            origin, linear_map = orig_map[pair]['origin'], orig_map[pair]['map']
     
+            for roi, array in rsoi.items():
+                submissions[executor.submit(change_basis_func, array, linear_map, origin)] = (filename, roi, pair)
 
-    
-    return 
+        new_coords = {}
+        for future in submissions:
+            filename, roi, pair = *submissions[future]
+            if filename not in new_coords:
+                new_coord[filename] = {}
+
+            try:
+                new_coords[filename][(roi, pair)] = future.result()
+            except Exception as exc:
+                print('%s generated an exception: %s' % (submissions[future], exc))
+
+    print('Attempting to save new coordinates to result folder:\n%s' % result_path)
+    for filename, coords in new_coords.items():
+        file_path = os.path.join(result_path, 'mapped_' + filename)
+        dframe = pd.DataFrame.from_dict(coords)
+        
+        dframe.to_hdf(file_path+'.h5')
+        dframe.to_csv(file_path+'.csv')
+        dframe.to_excel(file_path+'.xlsx')
+        
+        print('Saved', filename)
+
+    print('Done')
+    return True
 
 
 def get_basis(dlc3d_configs, image_paths, camera_pairs, user_defined_axis=['x', 'z'], pixel_tolerance=2):
