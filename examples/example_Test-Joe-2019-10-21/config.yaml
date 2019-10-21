@@ -1,0 +1,13 @@
+ # Project definitions
+Task: Test-Joe-2019-10-21
+scorer: Joe
+date: Oct21
+
+# Data paths
+data_path: C:\Users\Can\Projects\CINPLA\DeepCage\examples\Test-Joe-2019-10-21\labeled-data
+calibration_path: C:\Users\Can\Projects\CINPLA\DeepCage\examples\Test-Joe-2019-10-21\calibration-images
+results_path: C:\Users\Can\Projects\CINPLA\DeepCage\examples\Test-Joe-2019-10-21\analysis_results
+# Project paths
+project_config: C:\Users\Can\Projects\CINPLA\DeepCage\examples\Test-Joe-2019-10-21
+dlc_project_config: ''
+dlc3d_project_configs: {}

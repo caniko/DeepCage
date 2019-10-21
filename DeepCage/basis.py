@@ -62,7 +62,7 @@ def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
 
     pairs = get_pairs()
     for pair in pairs:
-        cam1, cam2 = *pair
+        cam1, cam2 = pair
         print('Calculating the basis vectors of {}'.format(pair))
 
         # Preparing for triangualting image coordinates
@@ -215,7 +215,7 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
     with concurrent.futures.ProcessPoolExecutor() as executor:
         submissions = {}
         for info, rsoi in coords.items():
-            pair, filename = *info
+            pair, filename = info
             origin, linear_map = orig_map[pair]['origin'], orig_map[pair]['map']
     
             for roi, array in rsoi.items():
@@ -223,7 +223,7 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
 
         new_coords = {}
         for future in submissions:
-            filename, roi, pair = *submissions[future]
+            filename, roi, pair = submissions[future]
             if filename not in new_coords:
                 new_coord[filename] = {}
 

@@ -7,7 +7,6 @@ import concurrent.futures
 from warnings import warn
 import pandas as pd
 
-from .basis import change_basis
 from .constants import CAMERAS
 
 
