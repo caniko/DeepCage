@@ -4,8 +4,8 @@ import cv2
 import os
 
 from deeplabcut.utils import auxiliaryfunctions_3d
+from deepcage.auxiliary import read_config
 
-from .auxilaryFunc import read_config
 from .utils import get_coord
 
 

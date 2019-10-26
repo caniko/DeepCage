@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import pickle
+from numpy.linalg import norm
 import numpy as np
+
+import pickle
 import ruamel.yaml
 
 import os
@@ -37,12 +39,46 @@ def change_basis_func(coord_matrix, linear_map, origin):
         lambda v: np.dot(linear_map, v - origin),
         1, coord_matrix
     )
+    
+    
+def get_angle(v1, v2):
+    return np.arccos(
+        np.dot(v1, v2) / (norm(v1) * norm(v2))
+    )
+
+    
+def get_midpoint(v1, v2):
+    # Find vector with highest magnitude
+    v1sp, v2sp = norm(v1), norm(v2)
+
+    if v1sp >= v2sp:
+        return v1 + (v2 - v1) / 2
+    else:
+        return v2 + (v1 - v2) / 2
+    
+
+def triangulate(b1, b2, apex):
+    bm = get_midpoint(b1, b2)
+    return get_midpoint(bm, apex)
+
+    
+def unit_vector(vector):
+    ''' Returns the unit vector of the vector. '''
+    return vector / norm(vector)
+
+
+def remove_close_zero(vector, tol=1e-16):
+    ''' Returns the vector where values under the tolerance is set to 0 '''
+    vector[np.abs(vector) < tol] = 0
+    return vector
 
 
 def basis_label(config_path, image_paths=None):
     '''
     Parameters
     ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
     image_paths : dict; optional
         Dictionary where the key is name of the camera, and the value is the full path to the image
         of the referance points taken with the camera
@@ -85,17 +121,9 @@ def get_coord(cam_image, n=-1, title=None):
     
     return plt.ginput(n=n, timeout=-1, show_clicks=True)
 
+
 def get_title(camera_name, axis_name, input_istip, direction):
     return '{camera_name}\nClick on {} tip of the {} on the {} side'.format(
         'the' if input_istip else 'a point an decrement from\nthe',
         axis_name, direction, camera_name=camera_name
     )
-
-def remove_close_zero(vector, tol=1e-16):
-    ''' Returns the vector where values under the tolerance is set to 0 '''
-    vector[np.abs(vector) < tol] = 0
-    return vector
-
-def unit_vector(vector):
-    ''' Returns the unit vector of the vector. '''
-    return vector / np.linalg.norm(vector)

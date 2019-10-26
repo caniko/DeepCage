@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 from os import path
 
 here = path.abspath(path.dirname(__file__))
@@ -9,6 +9,15 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 # The file is PEP 440 compliant:
 # https://www.python.org/dev/peps/pep-0440/
+
+
+install_requires = [
+    'openpyxl',
+    'tables',
+    'pandas',
+    'numpy',
+    'neo'
+]
 
 setup(
     name='DeepCage',
@@ -26,7 +35,7 @@ setup(
         'License :: BSD-3-Clause',
         'Programming Language :: Python :: 3',
     ],
-    packages=find_packages(),
+    packages=find_namespace_packages(),
     python_requires='>=3.6',
     project_urls={
         'Source': 'https://github.com/caniko2/DeepCage',

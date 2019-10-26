@@ -10,16 +10,15 @@ from glob import glob
 import pickle
 import os
 
-from .auxilaryFunc import read_config, get_pairs, detect_triangulation_result
+from deepcage.auxiliary import read_config, get_pairs, detect_triangulation_result, CAMERAS
+
 from .utils import get_coord, unit_vector, get_title, basis_label, change_basis_func
 from .triangulate import triangulate_raw_2d_camera_coords
-
-from .constants import CAMERAS, PAIRS
 
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
-def calibrate_cage(config_path, pixel_tolerance=2, save_path=None):
+def calibrate_cage(config_path, pixel_tolerance=2):
     '''
     Parameters
     ----------
@@ -245,60 +244,3 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
 
     print('Done')
     return True
-
-
-def get_basis(dlc3d_configs, image_paths, camera_pairs, user_defined_axis=['x', 'z'], pixel_tolerance=2):
-    '''
-    Parameters
-    ----------
-    dlc3d_configs : dict
-        Dictionary where the key is name of the camera, and the value is the full path of the config.yaml file
-        as a string.
-    image_paths : dict
-        Dictionary where the key is name of the camera, and the value is the full path to the image
-        of the referance points taken with the camera
-    camera_pairs : list-like
-        List of cameras that are pairs. Pairs usually have their own deeplabcut 3D project
-    user_defined_axis : dictionary with max length 2
-        Dictionary where the key are the axis to be selected by the user, choose between 'x-axis', 'y-axis', 'z-axis'; 1-, 2-, 3-dimension.
-        There must be two axis names, the third axis is defined using the cross product.
-        
-        The values of the keys is the secondary_axis_locations of the defined axis. This is important for the calculation of the third axis (first right hand rule)
-    pixel_tolerance : integer, float; default 2
-        Defines the floor-tolerance for setting basis vector after coordinate components being set to 0. After being moved to the origin
-    ''' 
-    VALID_AXIS_NAMES = ['x', 'y', 'z', 1, 2, 3]
-    coord_labels = ['origin']
-    for axis_name in user_defined_axis:
-        if axis_name in VALID_AXIS_NAMES:
-            coord_labels.append(axis_name)
-        else:
-            msg = 'Invalid axis name, {}. Valid names: {}'.format(axis_name, VALID_AXIS_NAMES)
-            raise ValueError(msg)
-            
-    cam_coords = dict.fromkeys(image_paths)
-    for cam_name, cam_img in image_paths.items():
-        cam_coords[cam_name] = []
-        max_i = len(coord_labels) - 1
-        for coord_name in coord_labels:
-            title = '%s: left mouse click add point' % coord_name
-            cam_coords[cam_name].append(get_coord(cam_img, n=1, title=title))
-
-    basis_of_pairs = {}
-    basis_dict = dict.fromkeys(coord_labels)
-    for cam1_name, cam2_name in camera_pairs:
-        coords = triangulate_raw_2d_camera_coords(
-            dlc3d_configs[(cam1_name, cam2_name)],
-            cam1_coords=cam_coords[cam1_name],
-            cam2_coords=cam_coords[cam2_name],
-            unit_keys=coord_labels
-        )
-
-        basis_of_pairs[(cam1_name, cam2_name)] = copy(basis_dict)
-        basis_of_pairs[(cam1_name, cam2_name)]['origin'] = np.array(coords['origin'])
-        for user_axis in user_defined_axis:
-            basis_of_pairs[(cam1_name, cam2_name)][user_axis] = unit_vector(
-                remove_close_zero(coords[user_axis] - coords['origin'], tol=pixel_tolerance)
-            )
-
-    return basis_of_pairs
