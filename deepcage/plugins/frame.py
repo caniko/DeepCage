@@ -4,8 +4,11 @@ from copy import copy
 import pandas as pd
 import numpy as np
 import pickle
+
+from glob import glob
 import pathlib
 import os
+import re
 
 from read_exdir import get_network_events
 
@@ -32,7 +35,8 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
 
-    paired_i_timings = {}
+    i_second = np.timedelta64(1, 's')
+    paired_timing_idxs = {}
     cameras = tuple(CAMERAS.keys())
     pairs = get_pairs()
     for info, bonpath in bon_projects.items():
@@ -56,30 +60,35 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
 
             cam_timings[camera] = np.array(cam_timings[camera], dtype='datetime64')
 
-        df_timings = {}
+        rem_timings = {}
         df_lengths = {}
+        fps = []
         for pair in pairs:
             cam1, cam2 = pair
             closesti_cam1_timings = get_closest_idxs(cam_timings[cam1], cam_timings[cam2])
             valid_cam2_indeces = np.where(cam_timings[cam1][closesti_cam1_timings] - cam_timings[cam2] <= pair_tol)
-            paired_i_timings[(animal, date, trial, pair)] = np.dstack(
-                (closesti_cam1_timings[valid_cam2_indeces], valid_cam2_indeces[0])
-            )
 
-            df_timings[(pair, cam1)] = closesti_cam1_timings[valid_cam2_indeces]
-            df_timings[(pair, cam2)] = valid_cam2_indeces[0]
+            rem_timings[(pair, cam1)] = closesti_cam1_timings[valid_cam2_indeces]
+            rem_timings[(pair, cam2)] = valid_cam2_indeces[0]
+            paired_timing_idxs[(animal, date, trial, pair)] = np.dstack(
+                (rem_timings[(pair, cam1)], rem_timings[(pair, cam2)])
+            )
+            
+            fps.append(np.ceil( i_second / ( (cam_timings[cam1][rem_timings[(pair, cam1)]][-1] - cam_timings[cam1][rem_timings[(pair, cam1)]][0]) / rem_timings[(pair, cam1)].shape[0] ) * 10 ) / 10)
+            fps.append(np.ceil( i_second / ( (cam_timings[cam2][rem_timings[(pair, cam2)]][-1] - cam_timings[cam2][rem_timings[(pair, cam2)]][0]) / rem_timings[(pair, cam2)].shape[0] ) * 10 ) / 10)
+
             df_lengths[valid_cam2_indeces[0].shape[0]] = pair
     
-        seq = [cam_timings[pair[1]][df_timings[(pair, pair[1])]] for pair in pairs]
+        seq = [cam_timings[pair[1]][rem_timings[(pair, pair[1])]] for pair in pairs]
         cam_combined = np.concatenate(seq)
         sorted_cc = np.sort(cam_combined)
 
         idxs = {}
         for pair in pairs:
             cam1, cam2 = pair
-            idxs[pair] = get_closest_idxs(sorted_cc, cam_timings[cam2][df_timings[(pair, cam2)]])
-            df_timings[(pair, cam1)] = pd.Series(df_timings[(pair, cam1)], index=idxs[pair])
-            df_timings[(pair, cam2)] = pd.Series(df_timings[(pair, cam2)], index=idxs[pair])
+            idxs[pair] = get_closest_idxs(sorted_cc, cam_timings[cam2][rem_timings[(pair, cam2)]])
+            rem_timings[(pair, cam1)] = pd.Series(rem_timings[(pair, cam1)], index=idxs[pair])
+            rem_timings[(pair, cam2)] = pd.Series(rem_timings[(pair, cam2)], index=idxs[pair])
 
 
         set_name = '%s_%s_%s' % (animal, date, trial)
@@ -89,7 +98,7 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
         if not os.path.exists(save_path):
             os.mkdir(save_path)
 
-        df = pd.DataFrame(df_timings)
+        df = pd.DataFrame(rem_timings)
         df.to_hdf(save_path / ('%s.h5' % filename), filename)
         try:
             df.to_excel(save_path / ('%s.xlsx' % filename))
@@ -97,12 +106,13 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
             print('openpyxl is not installed, saving readable version as csv instead of xlsx')
             df.to_csv(save_path / ('%s.csv' % filename))
 
+    print(fps)
     pickle_path = root_dir / 'stereocamera_frames.pickle'
     with open(pickle_path, 'wb') as outfile:
-        pickle.dump(paired_i_timings, outfile)
+        pickle.dump((paired_timing_idxs, fps), outfile)
 
 
-def create_videos(frames_dir, width=1920, height=1080, start_pair=None):
+def create_videos(frames_dir, width=1920, height=1080, start_pair=None, notebook=False):
     '''
     Create video using frame pairs that are temporally close frames within DeepCage camera-pairs
     
@@ -112,22 +122,49 @@ def create_videos(frames_dir, width=1920, height=1080, start_pair=None):
         String containing the full path of the directory storing BonRecordings related to the project
     '''
     # TODO: Finish
+    from .utils import encode_video, jp_encode_video
     import cv2
 
     bon_projects, subs = detect_bonsai(frames_dir)
     frame_root = pathlib.Path(frames_dir) / 'DeepCage'
-    paired_i_timings_path = frame_root / 'stereocamera_frames.pickle'
-    video_dir = frame_root / 'videos'
-    
-    with open(paired_i_timings_path, 'rb') as infile:
-        paired_i_timings = pickle.load(infile)
+    pickle_path = frame_root / 'stereocamera_frames.pickle'
 
-    if not os.path.exists(paired_i_timings_path):
-        msg = 'Does not exist: %s\ndeepcage.plugins.stereocamera_frames need to be run first' % paired_i_timings_path
+    if not os.path.exists(pickle_path):
+        msg = 'Does not exist: %s\ndeepcage.plugins.stereocamera_frames need to be run first' % pickle_path
         raise ValueError(msg)
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        for info, timings in paired_i_timings.items():
-            animal, date, trial, pair = info
+    with open(pickle_path, 'rb') as infile:
+        paired_timing_idxs, fps = pickle.load(infile)
 
-            
+    imgs = []
+    save_paths = []
+    for info, timings in paired_timing_idxs.items():
+        animal, date, trial, pair = info
+        set_name = '%s_%s_%s' % (animal, date, trial)
+        video_dir = frame_root / set_name / 'videos' / ('%s_%s' % pair)
+        if not os.path.exists(video_dir):
+            os.makedirs(video_dir)
+
+        for i in range(len(pair)):
+            cam = pair[i]
+            img_path = glob(os.path.realpath(bon_projects[(animal, date, trial)] / ('*_%s' % cam)))[0]
+
+            all_imgs = glob(os.path.join(img_path, '*.png'))
+
+            this_imgs = []
+            for fi in np.nditer(timings.T[i]):
+                this_imgs.append(os.path.abspath(all_imgs[int(fi)]))
+            imgs.append(this_imgs)
+
+            # imgs.append( [ os.path.abspath(all_imgs[int(fi)]) for fi in np.nditer(timings.T[i]) ] )
+            save_paths.append( video_dir / ('%s_%d-%s.avi' % (set_name, i, cam)) )
+
+    func = encode_video if notebook is False else jp_encode_video
+    with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
+        video_encoders = executor.map(func, save_paths, imgs, fps)
+        for future in video_encoders:
+            print(future)
+
+    # video_encoders = map(encode_video, save_paths, imgs, fps)
+    # for result in video_encoders:
+    #     print(result)

@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 
 def get_closest_idxs(array, values):
@@ -17,16 +18,33 @@ def get_closest_idxs(array, values):
     return idxs
 
 
-def assemble_video(save_path, width=1920, height=1080):
+def encode_video(save_path, img_paths, fps, width=1920, height=1080):
+    from tqdm import trange
     import cv2
 
-    # choose codec according to format needed
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video=cv2.VideoWriter('video.avi', fourcc, 1,(width, height))
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    video = cv2.VideoWriter(filename=str(save_path), fourcc=fourcc, apiPreference=0, fps=float(fps), frameSize=(width, height))
 
-    for j in range(0,5):
-        img = cv2.imread(str(i)+'.png')
+    for i in trange(len(img_paths), desc='Encoding: %s' % os.path.basename(save_path)):
+        img = cv2.imread(img_paths[i])
         video.write(img)
 
     cv2.destroyAllWindows()
     video.release()
+    return True
+
+
+def jp_encode_video(save_path, img_paths, fps, width=1920, height=1080):
+    from tqdm.notebook import trange
+    import cv2
+
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    video = cv2.VideoWriter(filename=str(save_path), fourcc=fourcc, apiPreference=0, fps=float(fps), frameSize=(width, height))
+
+    for i in trange(len(img_paths), desc='Encoding: %s' % os.path.basename(save_path)):
+        img = cv2.imread(img_paths[i])
+        video.write(img)
+
+    cv2.destroyAllWindows()
+    video.release()
+    return True
