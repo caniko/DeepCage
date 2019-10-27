@@ -17,7 +17,7 @@ from deepcage.auxiliary import read_config, get_pairs, detect_bonsai, CAMERAS
 from .utils import get_closest_idxs
 
 
-def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
+def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(100, 'ms')):
     '''
     Create frame pairs from temporally close frames within DeepCage camera-pairs
     
@@ -66,7 +66,7 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
         for pair in pairs:
             cam1, cam2 = pair
             closesti_cam1_timings = get_closest_idxs(cam_timings[cam1], cam_timings[cam2])
-            valid_cam2_indeces = np.where(cam_timings[cam1][closesti_cam1_timings] - cam_timings[cam2] <= pair_tol)
+            valid_cam2_indeces = np.where(np.abs(cam_timings[cam1][closesti_cam1_timings] - cam_timings[cam2]) <= pair_tol)
 
             rem_timings[(pair, cam1)] = closesti_cam1_timings[valid_cam2_indeces]
             rem_timings[(pair, cam2)] = valid_cam2_indeces[0]
@@ -74,9 +74,11 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
                 (rem_timings[(pair, cam1)], rem_timings[(pair, cam2)])
             )
             
-            fps.append(np.ceil( i_second / ( (cam_timings[cam1][rem_timings[(pair, cam1)]][-1] - cam_timings[cam1][rem_timings[(pair, cam1)]][0]) / rem_timings[(pair, cam1)].shape[0] ) * 10 ) / 10)
-            fps.append(np.ceil( i_second / ( (cam_timings[cam2][rem_timings[(pair, cam2)]][-1] - cam_timings[cam2][rem_timings[(pair, cam2)]][0]) / rem_timings[(pair, cam2)].shape[0] ) * 10 ) / 10)
-
+            fps.append(
+                np.ceil( i_second / ( (cam_timings[cam1][rem_timings[(pair, cam1)]][-1]
+                                       - cam_timings[cam1][rem_timings[(pair, cam1)]][0])
+                                       / rem_timings[(pair, cam1)].shape[0] ) * 10) / 10 )
+            fps.append(copy(fps[-1]))
             df_lengths[valid_cam2_indeces[0].shape[0]] = pair
     
         seq = [cam_timings[pair[1]][rem_timings[(pair, pair[1])]] for pair in pairs]
@@ -106,7 +108,7 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(ms=40)):
             print('openpyxl is not installed, saving readable version as csv instead of xlsx')
             df.to_csv(save_path / ('%s.csv' % filename))
 
-    print(fps)
+    print('FPS: %s\nMean FPS: %s' % (fps, np.mean(fps)))
     pickle_path = root_dir / 'stereocamera_frames.pickle'
     with open(pickle_path, 'wb') as outfile:
         pickle.dump((paired_timing_idxs, fps), outfile)
@@ -122,7 +124,7 @@ def create_videos(frames_dir, width=1920, height=1080, start_pair=None, notebook
         String containing the full path of the directory storing BonRecordings related to the project
     '''
     # TODO: Finish
-    from .utils import encode_video, jp_encode_video
+    from .utils import encode_video
     import cv2
 
     bon_projects, subs = detect_bonsai(frames_dir)
@@ -159,9 +161,8 @@ def create_videos(frames_dir, width=1920, height=1080, start_pair=None, notebook
             # imgs.append( [ os.path.abspath(all_imgs[int(fi)]) for fi in np.nditer(timings.T[i]) ] )
             save_paths.append( video_dir / ('%s_%d-%s.avi' % (set_name, i, cam)) )
 
-    func = encode_video if notebook is False else jp_encode_video
-    with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
-        video_encoders = executor.map(func, save_paths, imgs, fps)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+        video_encoders = executor.map(encode_video, save_paths, imgs, fps)
         for future in video_encoders:
             print(future)
 
