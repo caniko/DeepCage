@@ -4,9 +4,7 @@ import cv2
 import os
 
 from deeplabcut.utils import auxiliaryfunctions_3d
-from deepcage.auxiliary import read_config
-
-from .utils import get_coord
+from deepcage.auxiliary import read_config, get_coord
 
 
 def triangulate_raw_2d_camera_coords(config_path, cam1_coords=None, cam2_coords=None, cam1_image=None, cam2_image=None, unit_keys=None):

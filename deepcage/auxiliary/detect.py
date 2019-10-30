@@ -45,18 +45,6 @@ def detect_images(config_path):
     return cam_image_paths
 
 
-def get_pairs(camera_names=tuple(CAMERAS.keys())):
-    num = len(camera_names)
-    pairs = []
-    for i in range(num):
-        cam1 = camera_names[i]
-        cam2 = camera_names[i+1] if i != num-1 else camera_names[0]
-        pair = (cam1, cam2)
-        pairs.append(pair)
-        
-    return pairs
-
-
 def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.

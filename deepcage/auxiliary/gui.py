@@ -62,3 +62,12 @@ def basis_label(config_path, image_paths=None):
         stereo_file = pickle.dump(axis_vectors, outfile)
 
     return axis_vectors
+
+
+def alter_basis_label(config_path, camera, decrement=None, image_paths=None):
+    data_path = os.path.join(read_config(config_path)['data_path'], 'labels.pickle')
+    with open(data_path, 'rb') as infile:
+        axis_vectors = pickle.load(infile)
+        
+    if image_paths is None:
+        camera_images = detect_images(config_path)

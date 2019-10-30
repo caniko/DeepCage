@@ -1,13 +1,10 @@
 from numpy.linalg import norm
 import numpy as np
-
-import pickle
 import ruamel.yaml
-
+import pickle
 import os
 
-from .constants import CAMERAS, PAIRS
-from .auxilaryFunc import read_config, detect_images
+from deppcage.auxiliary import CAMERAS, read_config, detect_images
 
 
 def change_basis_func(coord_matrix, linear_map, origin):
@@ -21,6 +18,7 @@ def change_basis_func(coord_matrix, linear_map, origin):
         (3, 3) array that stores the linear map for changing basis
     origin : numpy.array-like
         A 3D row vector, that represents the origin
+
     Example
     -------
     >>> deeplabcut.change_of_basis(coord_matrix, linear_map, origin=(1, 4.2, 3))
@@ -37,15 +35,9 @@ def change_basis_func(coord_matrix, linear_map, origin):
         lambda v: np.dot(linear_map, v - origin),
         1, coord_matrix
     )
-    
-    
-def get_angle(v1, v2):
-    return np.arccos(
-        np.dot(v1, v2) / (norm(v1) * norm(v2))
-    )
 
     
-def get_midpoint(v1, v2):
+def duovec_midpoint(v1, v2):
     # Find vector with highest magnitude
     v1sp, v2sp = norm(v1), norm(v2)
 
@@ -55,9 +47,9 @@ def get_midpoint(v1, v2):
         return v2 + (v1 - v2) / 2
     
 
-def triangulate(b1, b2, apex):
-    bm = get_midpoint(b1, b2)
-    return get_midpoint(bm, apex)
+def triangulate(apex, b1, b2):
+    bm = duovec_midpoint(b1, b2)
+    return duovec_midpoint(bm, apex)
 
     
 def unit_vector(vector):
@@ -71,23 +63,25 @@ def remove_close_zero(vector, tol=1e-16):
     return vector
 
 
-def unit_vector(vector):
-    """ Returns the unit vector of the vector. """
-    return vector / np.linalg.norm(vector)
+def clockwise_angle(vector_1, vector_2, is_unit=False):
+    '''
+    Returns the inner_angle in radians between vectors 'vector_1' and 'vector_2'
 
+    Example
+    -------
+    >>> angle_between((1, 0, 0), (0, 1, 0))
+    1.5707963267948966
+    >>> angle_between((1, 0, 0), (1, 0, 0))
+    0.0
+    >>> angle_between((1, 0, 0), (-1, 0, 0))
+    3.141592653589793
+    '''
 
-def clockwise_angle(vector_1, vector_2):
-    """ Returns the inner_angle in radians between vectors 'vector_1' and 'vector_2'::
-
-        >>> angle_between((1, 0, 0), (0, 1, 0))
-        1.5707963267948966
-        >>> angle_between((1, 0, 0), (1, 0, 0))
-        0.0
-        >>> angle_between((1, 0, 0), (-1, 0, 0))
-        3.141592653589793
-    """
-    vector_1_u = np.apply_along_axis(unit_vector, 1, vector_1)
-    vector_2_u = np.apply_along_axis(unit_vector, 1, vector_2)
+    if is_unit is False:
+        vector_1_u = np.apply_along_axis(unit_vector, 1, vector_1)
+        vector_2_u = np.apply_along_axis(unit_vector, 1, vector_2)
+    else:
+        vector_1_u, vector_2_u = vector_1, vector_2
     
     inner_angle = np.arccos(np.clip(np.einsum('ij,ij->i', vector_1_u, vector_2_u), -1.0, 1.0))
 
