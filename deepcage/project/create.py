@@ -55,6 +55,8 @@ def initialise_prepare_projects(project_name, experimenter, root, dlc_config, ca
             cfg['config_file_camera-1'] = dlc_config
             cfg['config_file_camera-2'] = dlc_config
             cfg['camera_names'] = list(pair)
+            cfg['trainingsetindex_'+cam1] = cfg.pop('trainingsetindex_camera-1')
+            cfg['trainingsetindex_'+cam2] = cfg.pop('trainingsetindex_camera-2')
             write_config(dlc3d_project_configs[pair], cfg)
 
     config_path = create_dc_project(project_name, experimenter, dlc_config, dlc3d_project_configs, working_directory=root)

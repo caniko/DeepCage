@@ -1,4 +1,8 @@
-from deepcage.project import initialise_prepare_projects, calibrate_dlc_cameras, add_new_videos, triangulate_videos
+from deepcage.project import (
+    initialise_prepare_projects,
+    calibrate_dlc_cameras,
+    triangulate_bonvideos
+)
 import os
 
 
@@ -17,7 +21,4 @@ config_path = os.path.realpath('H:/Can_cage/DeepLabCut/DeepCage_MROS_V1-Can-2019
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None)
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=True, alpha=0.9, skip=None)
 
-
-# add_new_videos(config_path, VIDEO_ROOT, vformat='avi')
-
-triangulate_videos(config_path)
+triangulate_bonvideos(config_path, VIDEO_ROOT, gputouse=0, vformat='avi')

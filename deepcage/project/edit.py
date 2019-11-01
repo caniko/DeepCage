@@ -53,7 +53,7 @@ def read_config(config_path):
     return cfg
 
 
-def add_new_videos(config_path, video_root, vformat='avi'):
+def add_bonvideos_dlc3d(config_path, video_root, vformat='avi'):
     '''
     Parameters
     ----------

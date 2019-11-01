@@ -1,5 +1,6 @@
 import concurrent.futures
 
+from shutil import copyfile
 from pathlib import Path
 from glob import glob
 import os
@@ -9,60 +10,62 @@ from deepcage.auxiliary.constants import PAIR_IDXS
 from .edit import read_config, get_dlc3d_configs
 
 
-def add_new_videos(config_path, video_root, vformat='avi'):
+def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
     '''
     Parameters
     ----------
     vid_format : string; default 'avi'
     '''
-    dlc3d_cfgs = get_dlc3d_configs(config_path)
-    subdirs = glob(os.path.join(video_root, '*/'))
-    for subdir in subdirs:
-        bon, animal, trial, date = os.path.basename(subdir[:-1]).split('_')
-        assert bon == 'BonRecordings'
-        print('Moving videos of experiment with info:\nanimal %s; trial: %s; date %s' % (
-            animal, trial, date
-        ))
-
-        video_dirs = glob(os.path.join(subdir, '*/'))
-        for video_dir in video_dirs:
-            pair_dirs = glob(os.path.join(subdir, '*/'))
-            for pair_dir in pair_dirs:
-                pair_id, cam1, cam2 = os.path.basename(pair_dir[:-1]).split('_')
-                project_root = os.path.dirname(dlc3d_cfgs[(cam1, cam2)])
-
-                video_dir = os.path.join(project_root, 'videos')
-                if not os.path.exists(video_dir):
-                    os.mkdir(video_dir)
-                for video in glob(os.path.join(pair_dir, '*.'+vformat)):
-                    cam = os.path.basename(video).split('_')[2]
-                    new_name = '%s_%s_%s_%s.%s' % (animal, trial, cam, date, vformat)
-                    copyfile(os.path.realpath(video), os.path.join(video_dir, new_name))
-
-    return True
-
-
-def triangulate_videos(config_path, gputouse=0, vformat='avi'):
     from deeplabcut.pose_estimation_3d import triangulate
 
     cfg = read_config(config_path)
-    data_path = Path(cfg['data_path'])
+    results_path = Path(cfg['results_path'])
+
+    pairs = []
+    videos, destfolders = {}, {}
+    experiment_dirs = glob(os.path.join(video_root, '*/'))
+    for expdir in experiment_dirs:
+        bon, animal, trial, date = os.path.basename(expdir[:-1]).split('_')
+        assert bon == 'BonRecordings'
+
+        pair_dirs = glob(os.path.join(expdir, '*/'))
+        for pair_dir in pair_dirs:
+            pair_id, cam1, cam2 = os.path.basename(pair_dir[:-1]).split('_')
+
+            pair = (cam1, cam2)
+            pairs.append(pair)
+            if pair not in videos:
+                videos[pair] = []
+            if pair not in destfolders:
+                destfolders[pair] = []
+
+            pair_videos = glob(os.path.join(pair_dir, '*.'+vformat))
+            fail_msg = 'Remove additional videos:\n%d > 2:\n%s' % (len(pair_videos), pair_videos)
+            assert len(pair_videos) == 2, fail_msg
+            videos[pair].append(pair_videos)
+
+            pair_id1, cam_pair_id1, cam1, session_trial1 = os.path.splitext(os.path.basename(pair_videos[0]))[0].split('_')
+            pair_id2, cam_pair_id2, cam2, session_trial2 = os.path.splitext(os.path.basename(pair_videos[1]))[0].split('_')
+            fail_msg = '%s, %s != %s, %s' % (pair_id1, session_trial1, pair_id2, session_trial2)
+            assert (pair_id1, session_trial1) == (pair_id2, session_trial2), fail_msg
+            assert int(cam_pair_id1) == 0 and int(cam_pair_id2) == 1
+
+            destfolder = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date)) / ('%s_%s' % pair)
+            destfolders[pair].append(destfolder)
+            if not os.path.exists(destfolder):
+                os.makedirs(destfolder)
+
     dlc3d_cfgs = get_dlc3d_configs(config_path)
+    for pair in pairs:
+        print('Triangulating videos belonging to %s' % (pair,))
+        triangulate(
+            dlc3d_cfgs[pair],
+            videos[pair],
+            gputouse=gputouse,
+            destfolders=destfolders[pair]
+        )
 
-    for pair, dlc_config in dlc3d_cfgs.items():
-        video_path = os.path.join(os.path.dirname(dlc_config), 'videos')
-        if not os.path.exists(video_path):
-            print('No videos found in %s' % os.path.dirname(dlc_config))
-            continue
-
-        videos = glob(os.path.join(video_path, '*.'+vformat))
-        for v in videos:
-            animal, trial, cam, date = os.path.splitext(os.path.basename(v))[0].split('_')
-            dest_folder = data_path / ('%s_%s_%s_%s' % (animal, trial, cam, date)) / str(pair)
-            if not os.path.exists(dest_folder):
-                os.makedirs(dest_folder)
-
-            triangulate(config_path, video_path, gputouse=gputouse, destfolder=dest_folder)
+    return True
 
 
 def calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None, paralell=True):
