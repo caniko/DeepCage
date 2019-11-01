@@ -4,7 +4,9 @@ import ruamel.yaml
 import pickle
 import os
 
-from deppcage.auxiliary import CAMERAS, read_config, detect_images
+from deepcage.project.edit import read_config
+from deepcage.auxiliary.constants import CAMERAS
+from deepcage.auxiliary.detect import detect_cage_calibration_images
 
 
 def change_basis_func(coord_matrix, linear_map, origin):

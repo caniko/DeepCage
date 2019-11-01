@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import pickle
 import os
 
-from .detect import detect_bonsai, detect_images
-from .project import read_config
+from deepcage.project.edit import read_config
+from .detect import detect_bonsai, detect_cage_calibration_images
 from .constants import CAMERAS
 
 
@@ -45,7 +45,7 @@ def basis_label(config_path, image_paths=None):
         of the referance points taken with the camera
     '''
     if image_paths is None:
-        camera_images = detect_images(config_path)
+        camera_images = detect_cage_calibration_images(config_path)
 
     axis_vectors = dict.fromkeys(CAMERAS)
     for camera, axis in CAMERAS.items():
@@ -70,4 +70,4 @@ def alter_basis_label(config_path, camera, decrement=None, image_paths=None):
         axis_vectors = pickle.load(infile)
         
     if image_paths is None:
-        camera_images = detect_images(config_path)
+        camera_images = detect_cage_calibration_images(config_path)

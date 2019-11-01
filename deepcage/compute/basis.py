@@ -10,7 +10,9 @@ from glob import glob
 import pickle
 import os
 
-from deepcage.auxiliary import read_config, get_pairs, detect_triangulation_result, CAMERAS
+from deepcage.auxiliary.constants import CAMERAS, get_pairs
+from deepcage.auxiliary.detect import detect_triangulation_result, detect_cpu_number
+from deepcage.project.edit import read_config
 
 from .utils import get_coord, unit_vector, get_title, basis_label, change_basis_func
 from .triangulate import triangulate_raw_2d_camera_coords
@@ -193,7 +195,7 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
 
     '''
 
-    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
+    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True, paralell=True)
     if coords is False:
         print('According to the DeepCage result detection algorithm this project is not ready for changing basis')
         return False
@@ -211,25 +213,34 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
     with open(basis_result_path, 'rb') as infile:
         orig_map = pickle.load(infile)
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        submissions = {}
+    new_coords = {}
+    cpu_cores = detect_cpu_number(logical=False)
+    if paralell is False or cpu_cores < 2:
         for info, rsoi in coords.items():
             pair, filename = info
             origin, linear_map = orig_map[pair]['origin'], orig_map[pair]['map']
-    
+
             for roi, array in rsoi.items():
-                submissions[executor.submit(change_basis_func, array, linear_map, origin)] = (filename, roi, pair)
+                new_coords[filename][(roi, pair)] = change_basis_func(array, linear_map, origin)
+    else:
+        submissions = {}
+        workers = 4 if cpu_cores < 8 else 8
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            for info, rsoi in coords.items():
+                pair, filename = info
+                origin, linear_map = orig_map[pair]['origin'], orig_map[pair]['map']
+        
+                for roi, array in rsoi.items():
+                    submissions[executor.submit(change_basis_func, array, linear_map, origin)] = (filename, roi, pair)
 
-        new_coords = {}
-        for future in submissions:
-            filename, roi, pair = submissions[future]
-            if filename not in new_coords:
-                new_coord[filename] = {}
-
-            try:
-                new_coords[filename][(roi, pair)] = future.result()
-            except Exception as exc:
-                print('%s generated an exception: %s' % (submissions[future], exc))
+            for future in submissions:
+                filename, roi, pair = submissions[future]
+                if filename not in new_coords:
+                    new_coord[filename] = {}
+                try:
+                    new_coords[filename][(roi, pair)] = future.result()
+                except Exception as exc:
+                    print('%s generated an exception: %s' % (submissions[future], exc))
 
     print('Attempting to save new coordinates to result folder:\n%s' % result_path)
     for filename, coords in new_coords.items():

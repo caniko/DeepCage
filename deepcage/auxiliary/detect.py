@@ -1,10 +1,15 @@
 import pandas as pd
 from pathlib import Path
 from glob import glob
+from psutil import cpu_count
 import os
 
+from deepcage.project.edit import read_config
 from .constants import CAMERAS
-from .project import read_config
+
+
+def detect_cpu_number(logical=False):
+    return cpu_count(logical=logical)
 
 
 def detect_bonsai(frames_dir):
@@ -27,7 +32,7 @@ def detect_bonsai(frames_dir):
     return bon_projects, subs
 
 
-def detect_images(config_path):
+def detect_cage_calibration_images(config_path, img_format='png'):
     '''
     Detect images in calibration_images folder, and return a dictionary with their paths
     
@@ -36,13 +41,24 @@ def detect_images(config_path):
     image_dir = os.path.realpath(read_config(config_path)['calibration_path'])
     
     cam_image_paths = {}
-    for img in glob(os.path.join(image_dir, '*.png')):
+    for img in glob(os.path.join(image_dir, '*.'+img_format)):
         img_camera_name = img.split('\\')[-1].split('_')[0]
 
         if img_camera_name in camera_names:
             cam_image_paths[img_camera_name] = os.path.realpath(img)
 
     return cam_image_paths
+
+
+def detect_dlc_calibration_images(root, img_format='png'):
+    subdirs = glob(os.path.join(root, '*/'))
+    result = {}
+    for subdir in subdirs:
+        subdir = os.path.dirname(subdir)
+        idx, fcam1, fcam2 = os.path.basename(subdir).split('_')
+        result[(fcam1, fcam2)] = [os.path.realpath(calib_img) for calib_img in glob(os.path.join(subdir, '*.png'))]
+
+    return result
 
 
 def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
