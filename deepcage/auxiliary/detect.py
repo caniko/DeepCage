@@ -4,8 +4,9 @@ from glob import glob
 from psutil import cpu_count
 import os
 
-from deepcage.project.edit import read_config
-from .constants import CAMERAS
+from deepcage.project.edit import read_config, get_dlc3d_configs
+
+from .constants import CAMERAS, get_pairs
 
 
 def detect_cpu_number(logical=False):
@@ -80,7 +81,7 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
     '''
 
     suffix_split = suffix.split('.')
-    if len(suffix_split):
+    if len(suffix_split) > 1:
         if suffix_split[-1] != 'h5':
             msg = 'Invalid file extension in suffix: %s' % suffix
             raise ValueError(msg)
@@ -88,51 +89,53 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
         suffix = suffix + '.h5'
 
     cfg = read_config(config_path)
-    dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
-    data_path = os.path.realpath(cfg['data_path'])
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
+
+    results_path = Path(cfg['results_path'])
+    triangulated = results_path / 'triangulated'
+    experiments = glob(str(triangulated / '*/'))
 
     # Detect triangulation results in related DeepLabCut 3D projects
     # Analyse the number of occurances of hdf across projects
-    rsoi = None
     missing = 0
-    status = {}
-    coords = {}
-    pairs = set(get_pairs())
-    for pair, config_path in dlc3d_configs.items():
-        current_data_path = os.path.join(
-            os.path.join(os.path.dirname(config_path), 'videos'),
-            '*%s' % suffix
-        )
-        hdfs = glob(current_data_path)
-        for hdf in hdfs:
-            filename = os.path.basename(hdf)
-            dframe = pd.read_hdf(os.path.realpath(hdf))['DLC_3D']
-            current_rsoi = dframe.columns.levels[0]
+    status, coords, pairs = {}, {}, {}
+    for exp_path in experiments:
+        animal, trial, date = os.path.basename(exp_path).split('_')
+        coords[(animal, trial, date)] = {}
 
-            msg = 'The dataframes do not hold data from the same experiment.\nConsensus: %s\n%s: %s' % (
-                rsoi, (pair, filename), current_rsoi
-            )
-            assert rsoi is None or rsoi == current_rsoi
-            rsoi = current_rsoi
+        regions_of_interest = {}
+        for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
+            print(hdf_path)
+            cam1, cam2 = os.path.basename(os.path.dirname(hdf_path)).split('_')
+            pair = (cam1, cam2)
 
-            coords[(pair, filename)] = {roi: dframe[roi].values for roi in rsoi}
-            status[(filename, pair)] = 'X'
-    
-        pairs_with_hdf = set(kt[1] for kt in status.keys())
-        missing = pairs.difference(pairs_with_hdf)
-        for pair in missing:
-            status[(filename, pair)] = '-'
-            missing += 1
+            df = pd.read_hdf(os.path.realpath(hdf_path))['DLC_3D']
+            exp_regions_of_interest = df.columns.levels[0]
+            regions_of_interest[pair] = exp_regions_of_interest
 
-    if len(missing) != 0:
-        save_path = os.path.join(data_path, 'missing_hdf.xlsx')
-        pd.DataFrame.from_dict(status).to_excel(save_path)
-        print('There are %d files missing. An overview of the inconsistencies have been saved:\n%s\n' % save_path)
-        return False
-    else:
+            coords[(animal, trial, date)][pair] = {roi: df[roi].values for roi in exp_regions_of_interest}
+        # print(1)
+        # print(all([exp_regions_of_interest == rsoi for rsoi in regions_of_interest]))
+
+        # if not all(all([exp_regions_of_interest == rsoi for rsoi in regions_of_interest])):
+        #     save_path = os.path.join(exp_path, 'rsoi_incom_%s_%s_%s.xlsx' % (animal, trial, date))
+        #     pd.DataFrame.from_dict(regions_of_interest).to_excel(save_path)
+        #     print('Inconsistencies in exp %s %s %s were found.\nAn overview was saved:\n%s\n' % (
+        #         animal, trial, date, save_path
+        #         )
+        #     )
+        #     missing += 1
+
+    if missing == 0:
         print('Triangulations files detected, and verified')
         if change_basis is True:
             print('Proceeding to changing basis')
-            return coords
         else:
             print('The current DeepCage project is ready for changing basis')
+        return coords
+    else:
+        if missing == 1:
+            msg = 'Inconsistencies in regions of interest was found in one experiment'
+        else:
+            msg = 'Inconsistencies in regions of interest were found in %d experiments' % missing
+        raise ValueError(msg)

@@ -31,7 +31,7 @@ def get_coord(cam_image, n=-1, title=None):
     if title is not None:
         plt.title(title)
     
-    return plt.ginput(n=n, timeout=-1, show_clicks=True)
+    return plt.ginput(n=n, timeout=-1, show_clicks=True)[0]
 
 
 def basis_label(config_path, image_paths=None):
@@ -64,7 +64,7 @@ def basis_label(config_path, image_paths=None):
     return axis_vectors
 
 
-def alter_basis_label(config_path, camera, decrement=None, image_paths=None):
+def alter_basis_label(config_path, camera, index=None, image_paths=None):
     data_path = os.path.join(read_config(config_path)['data_path'], 'labels.pickle')
     with open(data_path, 'rb') as infile:
         axis_vectors = pickle.load(infile)

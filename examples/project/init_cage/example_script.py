@@ -1,8 +1,10 @@
 from deepcage.project import (
     initialise_prepare_projects,
     calibrate_dlc_cameras,
-    triangulate_bonvideos
+    triangulate_bonvideos,
 )
+from deepcage.auxiliary.detect import detect_triangulation_result
+from deepcage.compute import generate_linear_map, calibrate_cage
 import os
 
 
@@ -21,4 +23,10 @@ config_path = os.path.realpath('H:/Can_cage/DeepLabCut/DeepCage_MROS_V1-Can-2019
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None)
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=True, alpha=0.9, skip=None)
 
-triangulate_bonvideos(config_path, VIDEO_ROOT, gputouse=0, vformat='avi')
+# triangulate_bonvideos(config_path, VIDEO_ROOT, gputouse=0, vformat='avi')
+
+# generate_linear_map(config_path, paralell=False)
+
+# detect_triangulation_result(config_path)
+
+calibrate_cage(config_path, paralell=False)

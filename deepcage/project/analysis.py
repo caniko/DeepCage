@@ -7,7 +7,22 @@ import os
 
 from deepcage.auxiliary.detect import detect_cpu_number
 from deepcage.auxiliary.constants import PAIR_IDXS
+from deepcage.compute.basis import calibrate_cage
+
 from .edit import read_config, get_dlc3d_configs
+
+
+def cage_calibrate_triangulated(config_path):
+    cfg = read_config(config_path)
+    results_path = Path(cfg['results_path'])
+    triangulated = results_path / 'triangulated'
+    if not os.path.exists(triangulated):
+        msg = 'Could detect triangulated coords in %s' % triangulated
+        raise ValueError(msg)
+
+    experiments = glob(triangulated / '*/')
+    for exp in experiments:
+        calibrate_cage(config_path)
 
 
 def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
@@ -16,6 +31,7 @@ def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
     ----------
     vid_format : string; default 'avi'
     '''
+
     from deeplabcut.pose_estimation_3d import triangulate
 
     cfg = read_config(config_path)

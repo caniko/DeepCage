@@ -1,2 +1,2 @@
-from .angle import *
+from .future import *
 from .basis import *

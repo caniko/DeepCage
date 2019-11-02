@@ -5,22 +5,21 @@ import numpy as np
 import concurrent.futures
 from collections import namedtuple
 from warnings import warn
-from copy import copy, deepcopy
 from glob import glob
 import pickle
 import os
 
-from deepcage.auxiliary.constants import CAMERAS, get_pairs
 from deepcage.auxiliary.detect import detect_triangulation_result, detect_cpu_number
-from deepcage.project.edit import read_config
+from deepcage.project.edit import read_config, get_dlc3d_configs
+from deepcage.auxiliary.constants import CAMERAS, get_pairs
 
-from .utils import get_coord, unit_vector, get_title, basis_label, change_basis_func
+from .utils import unit_vector, change_basis_func
 from .triangulate import triangulate_raw_2d_camera_coords
 
 
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
-def calibrate_cage(config_path, pixel_tolerance=2):
+def generate_linear_map(config_path, pixel_tolerance=2, paralell=False):
     '''
     Parameters
     ----------
@@ -32,7 +31,7 @@ def calibrate_cage(config_path, pixel_tolerance=2):
 
     # Read config file and prepare variables
     cfg = read_config(config_path)
-    dlc3d_configs = cfg['dlc3d_configs']
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
     data_path = os.path.realpath(cfg['data_path'])
 
     basis_result_path = os.path.join(data_path, 'cb_result.pickle')
@@ -55,23 +54,18 @@ def calibrate_cage(config_path, pixel_tolerance=2):
         msg = 'Could not find labels in {}\nThe label process has either not been performed, or was not successful'.format(label_path)
         raise FileNotFoundError(msg)
 
-    unit = {'map': None, 'origin': None}
-
-    orig_map = {}
-    stereo_cam_units = {}
     camera_names = tuple(CAMERAS.keys())
 
-    pairs = get_pairs()
-    for pair in pairs:
+    def stereo_cam_info(pair):
         cam1, cam2 = pair
-        print('Calculating the basis vectors of {}'.format(pair))
+        print('Calculating the basis vectors of %s' % (pair,))
 
         # Preparing for triangualting image coordinates
         raw_cam1v = axis_vectors[cam1]
         raw_cam2v = axis_vectors[cam2]
         if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
             i, ii, iii = CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis'
-            assert CAMERAS[cam1] == CAMERAS[cam2]
+            assert CAMERAS[cam1] == CAMERAS[cam2], '%s != %s' % (CAMERAS[cam1], CAMERAS[cam2])
             unit_keys = ((CAMERAS[cam1][0][0], 'positive'), CAMERAS[cam1][1], 'z-axis')
 
             cam1v = (
@@ -86,8 +80,8 @@ def calibrate_cage(config_path, pixel_tolerance=2):
             )
         else:
             # Corner
-            assert CAMERAS[cam1][1][0] == CAMERAS[cam2][0]
-            assert CAMERAS[cam1][0][0] == CAMERAS[cam2][1][0]
+            assert CAMERAS[cam1][1][0] == CAMERAS[cam2][0][0], '%s != %s' % (CAMERAS[cam1][1][0], CAMERAS[cam2][0][0])
+            assert CAMERAS[cam1][0][0] == CAMERAS[cam2][1][0], '%s != %s' % (CAMERAS[cam1][0][0], CAMERAS[cam2][1][0])
             unit_keys = (CAMERAS[cam1][1], CAMERAS[cam2][1], 'z-axis')
 
             cam1v = (
@@ -102,11 +96,10 @@ def calibrate_cage(config_path, pixel_tolerance=2):
             )
 
         trian = triangulate_raw_2d_camera_coords(
-            dlc3d_configs[pair], cam1_coords=cam1v, cam2_coords=cam2v
+            dlc3d_cfgs[pair], cam1_coords=cam1v, cam2_coords=cam2v
         )
 
         if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
             if CAMERAS[cam1][0][1] == 'close':
                 origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
                 z_axis = unit_vector(trian[3] - origin)
@@ -127,7 +120,7 @@ def calibrate_cage(config_path, pixel_tolerance=2):
             # Corner
             first_axis_linev = unit_vector(trian[1] - trian[0])
             z_axis_linev = unit_vector(trian[5] - trian[4])
-            tangent_v = unit_vector(np.corss(z_axis_linev, first_axis_linev))
+            tangent_v = unit_vector(np.cross(z_axis_linev, first_axis_linev))
 
             LHS = np.array((first_axis_linev, -z_axis_linev, tangent_v)).T
             RHS = trian[4] - trian[0]
@@ -148,36 +141,67 @@ def calibrate_cage(config_path, pixel_tolerance=2):
             else:
                 alt_axis_2nd = origin - trian[2]
 
-        stereo_cam_units[(pair, CAMERAS[cam1][0][0])] = axis_1st
-        stereo_cam_units[(pair, axis_2nd_name)] = axis_2nd
-        stereo_cam_units[(pair, 'alt_%s' % axis_2nd_name)] = copy(alt_axis_2nd)
-        stereo_cam_units[(pair, 'z-axis')] = z_axis
-
-        orig_map[pair] = copy(unit)
-        orig_map[pair]['origin'] = origin
-        orig_map[pair]['map'] = np.array((axis_1st, axis_2nd, z_axis)).T
+        axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
+        stereo_cam_unit = {
+            CAMERAS[cam1][0][0]: axis_1st,
+            (axis_2nd_name, 'cross'): axis_2nd,
+            (axis_2nd_name, 'alt'): alt_axis_2nd,
+            'z-axis': z_axis
+        }
+        
+        orig_map = {
+            'origin': origin,
+            'map': np.array((axis_1st, axis_2nd, z_axis)).T
+        }
 
         print('\nCross product derived {axis_2nd_name}: {cross}\n' \
         'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
         'Ration between cross and origing: {ratio}\n'.format(
-            axis_2nd_name=axis_2nd_name,
-            cross=stereo_cam_units[(pair, axis_2nd_name)],
-            orig=alt_axis_2nd,
-            ratio=stereo_cam_units[(pair, axis_2nd_name)] / alt_axis_2nd
+            axis_2nd_name=axis_2nd_name, cross=axis_2nd,
+            orig=alt_axis_2nd, ratio=axis_2nd / alt_axis_2nd
         ))
+        
+        return stereo_cam_unit, orig_map
+
+    pairs = tuple(dlc3d_cfgs.keys())
+    orig_maps, stereo_cam_units = {}, {}
+    cpu_cores = detect_cpu_number(logical=False)
+    if paralell is False or cpu_cores < 2:
+        for pair in pairs:
+            orig_maps[pair], stereo_cam_units[pair] = stereo_cam_info(pair)
+
+    else:
+        workers = 4 if cpu_cores < 8 else 8
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            future_to_info = {executor.submit(stereo_cam_info, pair): pair for pair in pairs}
+            for future in concurrent.futures.as_completed(future_to_info):
+                pair = future_to_info[future]
+                try:
+                    orig_maps[pair], stereo_cam_units[pair] = future.result()
+                except Exception as exc:
+                    print('%s generated an exception: %s' % (pair, exc))
 
     with open(basis_result_path, 'wb') as outfile:
-        pickle.dump(orig_map, outfile)
+        pickle.dump((orig_maps, stereo_cam_units), outfile)
         print('Saved linear map to:\n{}'.format(basis_result_path))
 
     pd.DataFrame.from_dict(stereo_cam_units).to_excel(dataframe_path)
     print('Saved excel file containing the computed basis vectors to:\n{}'.format(dataframe_path))
 
     print('Returning dictionary containing the computed linear maps')
-    return orig_map
+    return orig_maps, stereo_cam_units
 
 
-def change_basis(config_path, suffix='_DLC_3D.h5'):
+def change_basis_experiment_coords(pair_roi_df, orig_maps):
+    coords = {}
+    for pair, roi_df in pair_roi_df.items():
+        origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
+        for roi, df in roi_df.items():
+            coords[(roi, pair)] = change_basis_func(df, linear_map, origin)
+    return coords
+
+
+def calibrate_cage(config_path, suffix='_DLC_3D.h5', paralell=True):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -195,15 +219,16 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
 
     '''
 
-    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True, paralell=True)
+    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
     if coords is False:
-        print('According to the DeepCage result detection algorithm this project is not ready for changing basis')
+        print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
         return False
 
     cfg = read_config(config_path)
     data_path = os.path.realpath(cfg['data_path'])
-    dlc3d_configs = os.path.realpath(cfg['dlc3d_project_configs'])
     result_path = cfg['results_path']
+
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
 
     if len(glob(os.path.join(result_path, '*.xlsx'))) or len(glob(os.path.join(result_path, '*.h5'))):
         msg = 'The result folder needs to be empty. Path: {}'.format(result_path)
@@ -211,47 +236,42 @@ def change_basis(config_path, suffix='_DLC_3D.h5'):
 
     basis_result_path = os.path.join(data_path, 'cb_result.pickle')
     with open(basis_result_path, 'rb') as infile:
-        orig_map = pickle.load(infile)
+        stereo_cam_units, orig_maps = pickle.load(infile)
 
     new_coords = {}
     cpu_cores = detect_cpu_number(logical=False)
     if paralell is False or cpu_cores < 2:
-        for info, rsoi in coords.items():
-            pair, filename = info
-            origin, linear_map = orig_map[pair]['origin'], orig_map[pair]['map']
+        for info, pair_roi_df in coords.items():
+            animal, trial, date = info
+            new_coords[(animal, trial, date)] = change_basis_experiment_coords(pair_roi_df, orig_maps)
 
-            for roi, array in rsoi.items():
-                new_coords[filename][(roi, pair)] = change_basis_func(array, linear_map, origin)
     else:
         submissions = {}
         workers = 4 if cpu_cores < 8 else 8
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            for info, rsoi in coords.items():
-                pair, filename = info
-                origin, linear_map = orig_map[pair]['origin'], orig_map[pair]['map']
-        
-                for roi, array in rsoi.items():
-                    submissions[executor.submit(change_basis_func, array, linear_map, origin)] = (filename, roi, pair)
+            for info, pair_roi_df in coords.items():
+                # info = (animal, trial, date)
+                submissions[executor.submit(change_basis_experiment_coords, pair_roi_df, orig_maps)] = info
 
             for future in submissions:
-                filename, roi, pair = submissions[future]
-                if filename not in new_coords:
-                    new_coord[filename] = {}
+                info = submissions[future]
+                if info not in new_coords:
+                    new_coords[info] = {}
                 try:
-                    new_coords[filename][(roi, pair)] = future.result()
+                    new_coords[info][(roi, pair)] = future.result()
                 except Exception as exc:
                     print('%s generated an exception: %s' % (submissions[future], exc))
 
     print('Attempting to save new coordinates to result folder:\n%s' % result_path)
-    for filename, coords in new_coords.items():
-        file_path = os.path.join(result_path, 'mapped_' + filename)
-        dframe = pd.DataFrame.from_dict(coords)
+    for info, pair_roi_df in new_coords.items():
+        file_path = os.path.join(result_path, 'mapped_%s_%s_%s' % info)
+        df = pd.DataFrame.from_dict(pair_roi_df)
         
-        dframe.to_hdf(file_path+'.h5')
-        dframe.to_csv(file_path+'.csv')
-        dframe.to_excel(file_path+'.xlsx')
+        df.to_hdf(file_path+'.h5')
+        df.to_csv(file_path+'.csv')
+        df.to_excel(file_path+'.xlsx')
         
-        print('Saved', filename)
+        print('The mapped coordinates of %s saved to\n%s\n' % (info, file_path))
 
     print('Done')
     return True
