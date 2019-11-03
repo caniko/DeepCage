@@ -197,11 +197,14 @@ def change_basis_experiment_coords(pair_roi_df, orig_maps):
     for pair, roi_df in pair_roi_df.items():
         origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
         for roi, df in roi_df.items():
-            coords[(roi, pair)] = change_basis_func(df, linear_map, origin)
-    return coords
+            x, y, z = change_basis_func(df, linear_map, origin).T
+            coords[(roi, pair, 'x')] = pd.Series(x)
+            coords[(roi, pair, 'y')] = pd.Series(y)
+            coords[(roi, pair, 'z')] = pd.Series(z)
+    return pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
 
 
-def calibrate_cage(config_path, suffix='_DLC_3D.h5', paralell=True):
+def calibrate_cage(config_path, suffix='_DLC_3D.h5', paralell=False):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -238,12 +241,12 @@ def calibrate_cage(config_path, suffix='_DLC_3D.h5', paralell=True):
     with open(basis_result_path, 'rb') as infile:
         stereo_cam_units, orig_maps = pickle.load(infile)
 
-    new_coords = {}
+    dfs = {}
     cpu_cores = detect_cpu_number(logical=False)
     if paralell is False or cpu_cores < 2:
         for info, pair_roi_df in coords.items():
             animal, trial, date = info
-            new_coords[(animal, trial, date)] = change_basis_experiment_coords(pair_roi_df, orig_maps)
+            dfs[(animal, trial, date)] = change_basis_experiment_coords(pair_roi_df, orig_maps)
 
     else:
         submissions = {}
@@ -255,22 +258,21 @@ def calibrate_cage(config_path, suffix='_DLC_3D.h5', paralell=True):
 
             for future in submissions:
                 info = submissions[future]
-                if info not in new_coords:
-                    new_coords[info] = {}
+                if info not in dfs:
+                    dfs[info] = {}
                 try:
-                    new_coords[info][(roi, pair)] = future.result()
+                    dfs[info][(roi, pair)] = future.result()
                 except Exception as exc:
                     print('%s generated an exception: %s' % (submissions[future], exc))
 
     print('Attempting to save new coordinates to result folder:\n%s' % result_path)
-    for info, pair_roi_df in new_coords.items():
+    for info, df in dfs.items():
         file_path = os.path.join(result_path, 'mapped_%s_%s_%s' % info)
-        df = pd.DataFrame.from_dict(pair_roi_df)
-        
-        df.to_hdf(file_path+'.h5')
+
+        df.to_hdf(file_path+'.h5', key='a%st%sd%s' % info)
         df.to_csv(file_path+'.csv')
         df.to_excel(file_path+'.xlsx')
-        
+
         print('The mapped coordinates of %s saved to\n%s\n' % (info, file_path))
 
     print('Done')
