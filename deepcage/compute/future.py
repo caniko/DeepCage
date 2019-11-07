@@ -1,7 +1,8 @@
 from numpy.linalg import norm
 import numpy as np
+import vg
 
-from .utils import unit_vector, clockwise_angle, duovec_midpoint
+from .utils import unit_vector, duovec_midpoint
 
 
 def non_sessile_angle_change(rp, p):
@@ -25,7 +26,7 @@ def non_sessile_angle_change(rp, p):
 
     baseline_unit_vector = np.median(line_units, axis=0)
     # baseline_uv_idx = line_units.index(np.percentile(line_units, 50, interpolation='nearest'))
-    return clockwise_angle(baseline_unit_vector, line_units, is_unit=True)
+    return vg.angle(baseline_unit_vector, line_units, is_unit=True)
 
 
 def compute_rigid_acceleration(*args, apex=None):

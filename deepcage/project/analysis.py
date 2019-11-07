@@ -1,3 +1,4 @@
+from psutil import cpu_count
 import concurrent.futures
 
 from shutil import copyfile
@@ -5,24 +6,9 @@ from pathlib import Path
 from glob import glob
 import os
 
-from deepcage.auxiliary.detect import detect_cpu_number
 from deepcage.auxiliary.constants import PAIR_IDXS
-from deepcage.compute.basis import calibrate_cage
 
 from .edit import read_config, get_dlc3d_configs
-
-
-def cage_calibrate_triangulated(config_path):
-    cfg = read_config(config_path)
-    results_path = Path(cfg['results_path'])
-    triangulated = results_path / 'triangulated'
-    if not os.path.exists(triangulated):
-        msg = 'Could detect triangulated coords in %s' % triangulated
-        raise ValueError(msg)
-
-    experiments = glob(triangulated / '*/')
-    for exp in experiments:
-        calibrate_cage(config_path)
 
 
 def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
@@ -88,7 +74,7 @@ def calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=
     from deeplabcut import calibrate_cameras
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
-    cpu_cores = detect_cpu_number(logical=False)
+    cpu_cores = cpu_count(logical=False)
     
     if paralell is False or cpu_cores < 2:
         for pair, dlc_config in dlc3d_cfgs.items():

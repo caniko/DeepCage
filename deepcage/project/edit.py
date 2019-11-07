@@ -47,7 +47,7 @@ def read_config(config_path):
                     cfg = yaml.load(ymlfile, Loader=yaml.SafeLoader)
                     write_config(config_path,cfg)
     else:
-        msg = "Config file is not pairs_with_hdf. Please make sure that the file in the path exists"
+        msg = 'Config file not found in config_path:\n%s' % config_path
         raise FileNotFoundError (msg)
 
     return cfg

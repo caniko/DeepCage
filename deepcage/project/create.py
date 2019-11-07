@@ -7,13 +7,14 @@ from pathlib import Path
 from glob import glob
 import os
 
-from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
 from deepcage.project.edit import read_config, write_config, get_dlc3d_configs
+from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
 
+from .analysis import calibrate_dlc_cameras
 from .utils import png_to_jpg
 
 
-def initialise_prepare_projects(project_name, experimenter, root, dlc_config, calib_root):
+def initialise_projects(project_name, experimenter, root, dlc_config, calib_root):
     '''
     Initialise a DeepCage project along with the DeepLabCut 3D for each stereo camera. Following the creation of these DLC 3D projects,
     detect calibration images located in a standard Bonsai project (can be found in examples in repo); move the images to their respective
@@ -27,12 +28,13 @@ def initialise_prepare_projects(project_name, experimenter, root, dlc_config, ca
     experimenter : str
         String containing the project_name of the experimenter/scorer.
     root : string
-        String containing the full path of to the directoy where the new project files should be located
+        String containing the full path of to the directory where the new project files should be located
     dlc_config : string
         String containing the full path of to the dlc config.yaml file that will be used for the dlc 3D projects
     calib_root : string
         String containing the full path of to the root directory storing the calibration files for each dlc 3D project
     '''
+    from deepcage.auxiliary.detect import detect_dlc_calibration_images
     from deeplabcut.create_project import create_new_project_3d
 
     dlc3d_project_configs = {}
@@ -61,7 +63,7 @@ def initialise_prepare_projects(project_name, experimenter, root, dlc_config, ca
 
     config_path = create_dc_project(project_name, experimenter, dlc_config, dlc3d_project_configs, working_directory=root)
 
-    calibrate_dlc(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9)
+    calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9)
     return config_path
 
 

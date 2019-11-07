@@ -4,9 +4,7 @@ import ruamel.yaml
 import pickle
 import os
 
-from deepcage.project.edit import read_config
 from deepcage.auxiliary.constants import CAMERAS
-from deepcage.auxiliary.detect import detect_cage_calibration_images
 
 
 def change_basis_func(coord_matrix, linear_map, origin):
@@ -59,42 +57,11 @@ def unit_vector(vector):
     return vector / norm(vector)
 
 
+def rad_to_deg(value):
+    return (value * 180) / np.pi
+
+
 def remove_close_zero(vector, tol=1e-16):
     ''' Returns the vector where values under the tolerance is set to 0 '''
     vector[np.abs(vector) < tol] = 0
     return vector
-
-
-def clockwise_angle(vector_1, vector_2, is_unit=False):
-    '''
-    Returns the inner_angle in radians between vectors 'vector_1' and 'vector_2'
-
-    Example
-    -------
-    >>> angle_between((1, 0, 0), (0, 1, 0))
-    1.5707963267948966
-    >>> angle_between((1, 0, 0), (1, 0, 0))
-    0.0
-    >>> angle_between((1, 0, 0), (-1, 0, 0))
-    3.141592653589793
-    '''
-
-    if is_unit is False:
-        vector_1_u = np.apply_along_axis(unit_vector, 1, vector_1)
-        vector_2_u = np.apply_along_axis(unit_vector, 1, vector_2)
-    else:
-        vector_1_u, vector_2_u = vector_1, vector_2
-    
-    inner_angle = np.arccos(np.clip(np.einsum('ij,ij->i', vector_1_u, vector_2_u), -1.0, 1.0))
-
-    # Find determinant
-    determinants = np.zeros((len(vector_1_u), 1))
-    for i in range(len(vector_1_u)):
-        determinants[i] = np.linalg.det(np.vstack((vector_1_u[i], vector_2_u[i])))
-
-    clockwise_angle = np.where(determinants.T >= 0, inner_angle, 2*np.pi - inner_angle)[0]
-
-    # The degree range is [pi, -pi]
-    clockwise_angle -= np.pi
-
-    return clockwise_angle

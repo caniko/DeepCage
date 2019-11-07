@@ -1,16 +1,12 @@
 import pandas as pd
+
 from pathlib import Path
 from glob import glob
-from psutil import cpu_count
 import os
 
 from deepcage.project.edit import read_config, get_dlc3d_configs
 
 from .constants import CAMERAS, get_pairs
-
-
-def detect_cpu_number(logical=False):
-    return cpu_count(logical=logical)
 
 
 def detect_bonsai(frames_dir):
