@@ -5,11 +5,15 @@ import os
 
 from deeplabcut.utils import auxiliaryfunctions_3d
 
-from deepcage.project.edit import read_config
+from deepcage.project.edit import read_config, get_dlc3d_configs
+from deepcage.auxiliary.constants import CAMERAS
 from deepcage.auxiliary.gui import get_coord
 
 
-def triangulate_raw_2d_camera_coords(dlc3d_cfg, cam1_coords=None, cam2_coords=None, cam1_image=None, cam2_image=None, unit_keys=None):
+def triangulate_raw_2d_camera_coords(
+    dlc3d_cfg, cam1_coords=None, cam2_coords=None,
+    cam1_image=None, cam2_image=None, keys=None
+    ):
     """
     Augmented deeplabcut.triangulate() for DeepCage workflow
     
@@ -32,7 +36,7 @@ def triangulate_raw_2d_camera_coords(dlc3d_cfg, cam1_coords=None, cam2_coords=No
         List of vectors that are coordinates in the camera 1 image
     cam2_coords : numpy.array-like; default None
         List of vectors that are coordinates in the camera 2 image
-    unit_keys : list-like; default None
+    keys : list-like; default None
         List of names or dictionary keys that can be associated with the 3d-coordinate with the identical index
 
     Example
@@ -118,7 +122,99 @@ def triangulate_raw_2d_camera_coords(dlc3d_cfg, cam1_coords=None, cam2_coords=No
     homogenous_coords = auxiliaryfunctions_3d.triangulatePoints(P1, P2, cam1_undistorted_coords, cam2_undistorted_coords)
     triangulated_coords = np.array((homogenous_coords[0], homogenous_coords[1], homogenous_coords[2])).T
 
-    if unit_keys is not None:
-        return {label: coord for label, coord in zip(unit_keys, triangulated_coords)}
+    if keys is not None:
+        return {label: coord for label, coord in zip(keys, triangulated_coords)}
     else:
         return triangulated_coords
+
+
+def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False, keys=False):
+    '''
+    Using the labels from basis_label create 2d representations of the basis vectors for triangulation
+
+    '''
+    cam1, cam2 = pair
+    print('Calculating the basis vectors of %s %s' % pair)
+    # i, ii, iii = CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis'
+
+    # Preparing for triangualting image coordinates
+    raw_cam1v = basis_labels[cam1]
+    raw_cam2v = basis_labels[cam2]
+
+    if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+        assert CAMERAS[cam1] == CAMERAS[cam2], '%s != %s' % (CAMERAS[cam1], CAMERAS[cam2])
+        if decrement is False:
+            trian_keys = (CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis', 'origin')
+        else:
+            trian_keys = (CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis')
+
+    else:
+        assert CAMERAS[cam1][1][0] == CAMERAS[cam2][0][0], '%s != %s' % (CAMERAS[cam1][1][0], CAMERAS[cam2][0][0])
+        assert CAMERAS[cam1][0][0] == CAMERAS[cam2][1][0], '%s != %s' % (CAMERAS[cam1][0][0], CAMERAS[cam2][1][0])
+        if decrement is False:
+            trian_keys = (CAMERAS[cam1][1], CAMERAS[cam2][1], 'z-axis', 'origin')
+        else:
+            trian_keys = (
+                (CAMERAS[cam1][1], 'apex'), (CAMERAS[cam1][1], 'decrement'),
+                (CAMERAS[cam2][1], 'apex'), (CAMERAS[cam2][1], 'decrement'),
+                ('z', 'apex'), ('z', 'decrement')
+            )
+
+    if decrement is False:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            cam1v = (
+                raw_cam1v[0]['positive'], raw_cam1v[0]['negative'],     # NorthNorth: x-axis
+                raw_cam1v[1],                                           # NorthNorth: y-axis
+                raw_cam1v[2],                                           # z-axis
+                raw_cam1v[3]
+            )
+            cam2v = (
+                raw_cam2v[0]['positive'], raw_cam2v[0]['negative'],
+                raw_cam2v[1],
+                raw_cam2v[2],
+                raw_cam1v[3]
+            )
+
+        else:
+            # Corner
+            cam1v = (
+                raw_cam1v[1],                           # EastSouth: x positive
+                raw_cam1v[0][ CAMERAS[cam2][1][1] ],    # EastSouth: y negative
+                raw_cam1v[2],
+                raw_cam1v[3]
+            )
+            cam2v = (
+                raw_cam2v[0][ CAMERAS[cam1][1][1] ],     # SouthEast: x positive
+                raw_cam2v[1],                            # SouthEast: y negative
+                raw_cam2v[2],
+                raw_cam2v[3]
+            )
+    else:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            cam1v = (
+                raw_cam1v[0]['positive'][0], raw_cam1v[0]['negative'][0],   # NorthNorth: x-axis
+                raw_cam1v[1][0],                                            # NorthNorth: y-axis
+                raw_cam1v[2][0]                                             # z-axis
+            )
+            cam2v = (
+                raw_cam2v[0]['positive'][0], raw_cam2v[0]['negative'][0],
+                raw_cam2v[1][0],
+                raw_cam2v[2][0]
+            )
+        else:
+            # Corner
+            cam1v = (
+                raw_cam1v[1][0], raw_cam1v[1][1],                                                   # EastSouth: x positive
+                raw_cam1v[0][ CAMERAS[cam2][1][1] ][0], raw_cam1v[0][ CAMERAS[cam2][1][1] ][1],     # EastSouth: y negative
+                raw_cam1v[2][0], raw_cam1v[2][1]
+            )
+            cam2v = (
+                raw_cam2v[0][ CAMERAS[cam1][1][1] ][0], raw_cam2v[0][ CAMERAS[cam1][1][1] ][1],     # SouthEast: x positive
+                raw_cam2v[1][0], raw_cam2v[1][1],                                                   # SouthEast: y negative
+                raw_cam2v[2][0], raw_cam2v[2][1]
+            )
+
+    return triangulate_raw_2d_camera_coords(
+        dlc3d_cfg, cam1_coords=cam1v, cam2_coords=cam2v,
+        keys=None if keys is False else trian_keys
+    )

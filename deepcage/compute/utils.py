@@ -1,4 +1,5 @@
 from numpy.linalg import norm
+import pandas as pd
 import numpy as np
 import ruamel.yaml
 import pickle
@@ -36,7 +37,7 @@ def change_basis_func(coord_matrix, linear_map, origin):
         1, coord_matrix
     )
 
-    
+
 def duovec_midpoint(v1, v2):
     # Find vector with highest magnitude
     v1sp, v2sp = norm(v1), norm(v2)

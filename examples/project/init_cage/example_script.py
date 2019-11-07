@@ -4,7 +4,7 @@ from deepcage.project import (
     triangulate_bonvideos,
 )
 from deepcage.auxiliary.detect import detect_triangulation_result
-from deepcage.compute import generate_linear_map, map_coords, visualize_basis_vectors
+from deepcage.compute import create_stereo_cam_origmap, map_coords, visualize_basis_vectors, plot_triangulated
 import os
 
 
@@ -25,8 +25,9 @@ config_path = os.path.join(root, 'DeepCage_MROS_V1-Can-2019-10-30/config.yaml')
 
 # triangulate_bonvideos(config_path, VIDEO_ROOT, gputouse=0, vformat='avi')
 
-generate_linear_map(config_path, paralell=False)
-visualize_basis_vectors(config_path)
+# create_stereo_cam_origmap(config_path)
+# visualize_basis_vectors(config_path)
+plot_triangulated(config_path)
 
 # detect_triangulation_result(config_path)
 
