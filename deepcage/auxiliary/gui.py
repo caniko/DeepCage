@@ -53,18 +53,18 @@ def basis_label(config_path, image_paths=None, decrement=False):
         camera_images = detect_cage_calibration_images(config_path)
 
     n = -1
-    axis_vectors = dict.fromkeys(CAMERAS)
+    basis_labels = dict.fromkeys(CAMERAS)
     for camera, axis in CAMERAS.items():
         cam_img = camera_images[camera]
 
         if decrement is True:
-            axis_vectors[camera] = (
+            basis_labels[camera] = (
                 {direction: [get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], istip, direction)) for istip in (True, False)] for direction in ('positive', 'negative')},
                 [get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], istip, axis[1][1])) for istip in (True, False)],
                 [get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', istip, 'positive')) for istip in (True, False)]
             )
         else:
-            axis_vectors[camera] = (
+            basis_labels[camera] = (
                 {direction: get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], True, direction)) for direction in ('positive', 'negative')},
                 get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], True, axis[1][1])),
                 get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', True, 'positive')),
@@ -76,15 +76,15 @@ def basis_label(config_path, image_paths=None, decrement=False):
 
     data_path = os.path.join(read_config(config_path)['data_path'], 'labels.pickle')
     with open(data_path, 'wb') as outfile:
-        stereo_file = pickle.dump(axis_vectors, outfile)
+        stereo_file = pickle.dump(basis_labels, outfile)
 
-    return axis_vectors
+    return basis_labels
 
 
 def alter_basis_label(config_path, camera, index=None, image_paths=None):
     data_path = os.path.join(read_config(config_path)['data_path'], 'labels.pickle')
     with open(data_path, 'rb') as infile:
-        axis_vectors = pickle.load(infile)
+        basis_labels = pickle.load(infile)
         
     if image_paths is None:
         camera_images = detect_cage_calibration_images(config_path)

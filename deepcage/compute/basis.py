@@ -54,105 +54,9 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
         dlc3d_cfg = dlc3d_cfgs[pair]
     
         # Get triangulated points for computing basis vectors
-        trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False)
+        trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=decrement)
 
-        if decrement is True:
-            if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-                if CAMERAS[cam1][0][1] == 'close':
-                    origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
-                    z_axis = unit_vector(trian[3] - origin)
-                    axis_1st = unit_vector(trian[0] - origin)
-                    axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                else:
-                    origin = trian[1] + (trian[0] - trian[1]) / 2
-                    z_axis = unit_vector(trian[3] - origin)
-                    axis_1st = unit_vector(origin - trian[1])
-                    axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-                if CAMERAS[cam2][1][1] == 'positive':
-                    alt_axis_2nd = origin - trian[2]
-                else:
-                    alt_axis_2nd = trian[2] - origin
-
-            else:
-                # Corner
-                first_axis_linev = unit_vector(trian[1] - trian[0])
-                z_axis_linev = unit_vector(trian[5] - trian[4])
-                tangent_v = unit_vector(np.cross(z_axis_linev, first_axis_linev))
-
-                LHS = np.array((first_axis_linev, -z_axis_linev, tangent_v)).T
-                RHS = trian[4] - trian[0]
-                sol = solve(LHS, RHS)
-
-                origin = trian[0] + first_axis_linev * sol[0] + tangent_v * sol[2]/2
-                z_axis = unit_vector(trian[4] - origin)
-
-                if CAMERAS[cam1][1][1] == 'positive':
-                    axis_1st = unit_vector(trian[0] - origin)
-                    axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                else:
-                    axis_1st = unit_vector(origin - trian[0])
-                    axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-                if CAMERAS[cam2][1][1] == 'positive':
-                    alt_axis_2nd = trian[2] - origin
-                else:
-                    alt_axis_2nd = origin - trian[2]
-        else:
-            if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-                if CAMERAS[cam1][0][1] == 'close':
-                    origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
-                    z_axis = unit_vector(trian[3] - origin)
-                    axis_1st = unit_vector(trian[0] - origin)
-                    # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-                    axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                else:
-                    origin = trian[1] + (trian[0] - trian[1]) / 2
-                    z_axis = unit_vector(trian[3] - origin)
-                    axis_1st = unit_vector(origin - trian[1])
-                    # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                    axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-                if CAMERAS[cam2][1][1] == 'positive':
-                    alt_axis_2nd = origin - trian[2]
-                else:
-                    alt_axis_2nd = trian[2] - origin
-            else:
-                origin = trian[-1]
-                z_axis = unit_vector(trian[2] - origin)
-                if CAMERAS[cam1][1][1] == 'positive':
-                    axis_1st = unit_vector(trian[0] - origin)
-                    # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-                    axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                else:
-                    axis_1st = unit_vector(origin - trian[0])
-                    # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                    axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-                if CAMERAS[cam2][1][1] == 'positive':
-                    alt_axis_2nd = trian[2] - origin
-                else:
-                    alt_axis_2nd = origin - trian[2]
-
-        axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
-        stereo_cam_units[pair] = {
-            CAMERAS[cam1][0][0]: axis_1st,
-            (axis_2nd_name, 'cross'): axis_2nd,
-            (axis_2nd_name, 'alt'): alt_axis_2nd,
-            'z-axis': z_axis
-        }
-
-        orig_maps[pair] = {
-            'origin': origin,
-            'map': np.array((axis_1st, axis_2nd, z_axis)).T
-        }
-
-        print('\nCross product derived {axis_2nd_name}: {cross}\n' \
-        'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
-        'Angle between the two vectors: {angle}\n'.format(
-            axis_2nd_name=axis_2nd_name, cross=axis_2nd,
-            orig=alt_axis_2nd, angle=vg.angle(axis_2nd, alt_axis_2nd)
-        ))
+        stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement)
 
     if save is True:
         with open(basis_result_path, 'wb') as outfile:
@@ -165,6 +69,109 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
     print('Returning dictionary containing the computed linear maps')
 
     return stereo_cam_units, orig_maps
+
+
+def compute_basis_vectors(trian, pair, decrement=False):
+    cam1, cam2 = pair
+    if decrement is True:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            if CAMERAS[cam1][0][1] == 'close':
+                origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
+                z_axis = unit_vector(trian[3] - origin)
+                axis_1st = unit_vector(trian[0] - origin)
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+            else:
+                origin = trian[1] + (trian[0] - trian[1]) / 2
+                z_axis = unit_vector(trian[3] - origin)
+                axis_1st = unit_vector(origin - trian[1])
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = origin - trian[2]
+            else:
+                alt_axis_2nd = trian[2] - origin
+
+        else:
+            # Corner
+            first_axis_linev = unit_vector(trian[1] - trian[0])
+            z_axis_linev = unit_vector(trian[5] - trian[4])
+            tangent_v = unit_vector(np.cross(z_axis_linev, first_axis_linev))
+
+            LHS = np.array((first_axis_linev, -z_axis_linev, tangent_v)).T
+            RHS = trian[4] - trian[0]
+            sol = solve(LHS, RHS)
+
+            origin = trian[0] + first_axis_linev * sol[0] + tangent_v * sol[2]/2
+            z_axis = unit_vector(trian[4] - origin)
+
+            if CAMERAS[cam1][1][1] == 'positive':
+                axis_1st = unit_vector(trian[0] - origin)
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+            else:
+                axis_1st = unit_vector(origin - trian[0])
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = trian[2] - origin
+            else:
+                alt_axis_2nd = origin - trian[2]
+    else:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            if CAMERAS[cam1][0][1] == 'close':
+                origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
+                z_axis = unit_vector(trian[3] - origin)
+                axis_1st = unit_vector(trian[0] - origin)
+                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+            else:
+                origin = trian[1] + (trian[0] - trian[1]) / 2
+                z_axis = unit_vector(trian[3] - origin)
+                axis_1st = unit_vector(origin - trian[1])
+                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = origin - trian[2]
+            else:
+                alt_axis_2nd = trian[2] - origin
+        else:
+            origin = trian[-1]
+            z_axis = unit_vector(trian[2] - origin)
+            if CAMERAS[cam1][1][1] == 'positive':
+                axis_1st = unit_vector(trian[0] - origin)
+                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+            else:
+                axis_1st = unit_vector(origin - trian[0])
+                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = trian[2] - origin
+            else:
+                alt_axis_2nd = origin - trian[2]
+
+    axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
+    stereo_cam_unit = {
+        CAMERAS[cam1][0][0]: axis_1st,
+        (axis_2nd_name, 'cross'): axis_2nd,
+        (axis_2nd_name, 'alt'): alt_axis_2nd,
+        'z-axis': z_axis
+    }
+
+    orig_map = {
+        'origin': origin,
+        'map': np.array((axis_1st, axis_2nd, z_axis)).T
+    }
+
+    print('\nCross product derived {axis_2nd_name}: {cross}\n' \
+    'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
+    'Angle between the two vectors: {angle}\n'.format(
+        axis_2nd_name=axis_2nd_name, cross=axis_2nd,
+        orig=alt_axis_2nd, angle=vg.angle(axis_2nd, alt_axis_2nd)
+    ))
+    
+    return stereo_cam_unit, orig_map
 
 
 def change_basis_experiment_coords(pair_roi_df, orig_maps):
