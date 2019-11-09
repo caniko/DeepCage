@@ -121,14 +121,14 @@ def compute_basis_vectors(trian, pair, decrement=False):
                 origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
                 z_axis = unit_vector(trian[3] - origin)
                 axis_1st = unit_vector(trian[0] - origin)
-                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
             else:
                 origin = trian[1] + (trian[0] - trian[1]) / 2
                 z_axis = unit_vector(trian[3] - origin)
                 axis_1st = unit_vector(origin - trian[1])
-                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
 
             if CAMERAS[cam2][1][1] == 'positive':
                 alt_axis_2nd = origin - trian[2]
@@ -139,12 +139,12 @@ def compute_basis_vectors(trian, pair, decrement=False):
             z_axis = unit_vector(trian[2] - origin)
             if CAMERAS[cam1][1][1] == 'positive':
                 axis_1st = unit_vector(trian[0] - origin)
-                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
             else:
                 axis_1st = unit_vector(origin - trian[0])
-                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
 
             if CAMERAS[cam2][1][1] == 'positive':
                 alt_axis_2nd = trian[2] - origin

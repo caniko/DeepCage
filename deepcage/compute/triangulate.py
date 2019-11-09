@@ -123,7 +123,7 @@ def triangulate_raw_2d_camera_coords(
     triangulated_coords = np.array((homogenous_coords[0], homogenous_coords[1], homogenous_coords[2])).T
 
     if keys is not None:
-        return {label: coord for label, coord in zip(keys, triangulated_coords)}
+        return {label: coord for label, coord in zip(keys, triangulated_coords)}, triangulated_coords
     else:
         return triangulated_coords
 
