@@ -16,7 +16,8 @@ install_requires = [
     'tables',
     'pandas',
     'numpy',
-    'neo'
+    'neo',
+    'vg'
 ]
 
 setup(
