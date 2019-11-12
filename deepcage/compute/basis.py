@@ -38,13 +38,6 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
         msg = 'Please remove old analysis file before proceeding. File paths:\n%s\n' % dataframe_path
 
     # Get labels
-    # label_path = os.path.join(data_path, 'labels.pickle')
-    # try:
-    #     with open(label_path, 'rb') as infile:
-    #         basis_labels = pickle.load(infile)
-    # except FileNotFoundError:
-    #     msg = 'Could not find labels in {}\nThe label process has either not been performed, or was not successful'.format(label_path)
-    #     raise FileNotFoundError(msg)
     basis_labels = get_labels(config_path)
 
     pairs = tuple(dlc3d_cfgs.keys())
@@ -121,14 +114,12 @@ def compute_basis_vectors(trian, pair, decrement=False):
                 origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
                 z_axis = unit_vector(trian[3] - origin)
                 axis_1st = unit_vector(trian[0] - origin)
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
             else:
                 origin = trian[1] + (trian[0] - trian[1]) / 2
                 z_axis = unit_vector(trian[3] - origin)
                 axis_1st = unit_vector(origin - trian[1])
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
 
             if CAMERAS[cam2][1][1] == 'positive':
                 alt_axis_2nd = origin - trian[2]
@@ -139,12 +130,10 @@ def compute_basis_vectors(trian, pair, decrement=False):
             z_axis = unit_vector(trian[2] - origin)
             if CAMERAS[cam1][1][1] == 'positive':
                 axis_1st = unit_vector(trian[0] - origin)
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-                # axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
+                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
             else:
                 axis_1st = unit_vector(origin - trian[0])
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-                # axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
+                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
 
             if CAMERAS[cam2][1][1] == 'positive':
                 alt_axis_2nd = trian[2] - origin

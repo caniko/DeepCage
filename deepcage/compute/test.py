@@ -6,24 +6,23 @@ import pickle
 import os
 
 from deepcage.project.edit import read_config, get_dlc3d_configs
-from deepcage.project.get import get_labels
+from deepcage.project.get import get_labels, get_paired_labels
 from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS
 
-from .triangulate import triangulate_basis_labels
+from .triangulate import triangulate_basis_labels, triangulate_raw_2d_camera_coords
 from .basis import compute_basis_vectors
 from .utils import rad_to_deg
 
 
 def visualize_basis_vectors(config_path, decrement=False):
-    cfg = read_config(config_path)
-    data_path = os.path.realpath(cfg['data_path'])
-
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     basis_labels = get_labels(config_path)
 
-    figure_dir = os.path.join(data_path, 'test figures')
+    cfg = read_config(config_path)
+    test_dir = os.path.join(cfg['data_path'], 'test')
+    figure_dir = os.path.join(test_dir, 'visualize_basis_vectors')
     if not os.path.exists(figure_dir):
-        os.mkdir(figure_dir)
+        os.makedirs(figure_dir)
 
     n = np.linspace(-1, 5, 100)
     pairs = tuple(dlc3d_cfgs.keys())
@@ -41,47 +40,8 @@ def visualize_basis_vectors(config_path, decrement=False):
         ax4 = fig.add_subplot(224)  # cam2
         
         # Prepare camera plot labels
-        if decrement is False:
-            cam_labels = {
-                cam1: {
-                    ('%s positive' % CAMERAS[cam1][0][0]): raw_cam1v[0]['positive'],
-                    ('%s negative' % CAMERAS[cam1][0][0]): raw_cam1v[0]['negative'],
-                    CAMERAS[cam1][1]: raw_cam1v[1],
-                    'z-axis': raw_cam1v[2],
-                    'origin': raw_cam1v[3]
-                },
-                cam2: {
-                    ('%s positive' % CAMERAS[cam2][0][0]): raw_cam2v[0]['positive'],
-                    ('%s negative' % CAMERAS[cam2][0][0]): raw_cam2v[0]['negative'],
-                    CAMERAS[cam2][1]: raw_cam2v[1],
-                    'z-axis': raw_cam2v[2],
-                    'origin': raw_cam2v[3]
-                }
-            }
+        cam_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
 
-        else:
-            cam_labels = {
-                cam1: {
-                    ('%s positive apex' % CAMERAS[cam1][0][0]): raw_cam1v[0]['positive'][0],
-                    ('%s positive decrement' % CAMERAS[cam1][0][0]): raw_cam1v[0]['positive'][1],
-                    ('%s negative' % CAMERAS[cam1][0][0]): raw_cam1v[0]['negative'][0],
-                    ('%s negative decrement' % CAMERAS[cam1][0][0]): raw_cam1v[0]['negative'][1],
-                    ('%s apex' % CAMERAS[cam1][1]): raw_cam1v[1][0],
-                    ('%s decrement' % CAMERAS[cam1][1]): raw_cam1v[1][1],
-                    'z-axis apex': raw_cam1v[2][0],
-                    'z-axis decrement': raw_cam1v[2][1]
-                },
-                cam2: {
-                    ('%s positive apex' % CAMERAS[cam2][0][0]): raw_cam2v[0]['positive'][0],
-                    ('%s positive decrement' % CAMERAS[cam2][0][0]): raw_cam2v[0]['positive'][1],
-                    ('%s negative' % CAMERAS[cam2][0][0]): raw_cam2v[0]['negative'][0],
-                    ('%s negative decrement' % CAMERAS[cam2][0][0]): raw_cam2v[0]['negative'][1],
-                    ('%s apex' % CAMERAS[cam2][1]): raw_cam2v[1][0],
-                    ('%s decrement' % CAMERAS[cam2][1]): raw_cam2v[1][1],
-                    'z-axis apex': raw_cam2v[2][0],
-                    'z-axis decrement': raw_cam2v[2][1]
-                }
-            }
         # Plot manually created labels
         for cam, cax in zip(pair, (ax3, ax4)):
             colors = iter(plt.cm.rainbow(np.linspace(0, 1, len(cam_labels[cam]))))
@@ -126,3 +86,43 @@ def visualize_basis_vectors(config_path, decrement=False):
 
         # fig.subplots_adjust(wspace=0.5)
         fig.savefig(os.path.join(figure_dir, '%d_%s_%s.png' % (PAIR_IDXS[pair], *pair)))
+
+
+def visualize_triangulation(config_path, decrement=False):
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
+    basis_labels = get_labels(config_path)
+
+    cfg = read_config(config_path)
+    test_dir = os.path.join(cfg['data_path'], 'test')
+    if not os.path.exists(test_dir):
+        os.mkdir(test_dir)
+
+    fig = plt.figure(figsize=(12, 10))
+
+    # Get non-corner pairs by splicing
+    pairs = tuple(PAIR_IDXS.keys())[::2]
+    for i, pair in enumerate(pairs):
+        dlc3d_cfg = dlc3d_cfgs[pair]
+        cam1, cam2 = pair
+
+        # Prepare camera plot labels
+        cam_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
+
+        # Triangulate the two sets of labels, and map them to 3D
+        raw_cam1v = basis_labels[cam1]
+        raw_cam2v = basis_labels[cam2]
+        trian_dict, _ = triangulate_raw_2d_camera_coords(
+            dlc3d_cfg,
+            cam1_coords=(*raw_cam1v[0].values(), *raw_cam1v[1:]),
+            cam2_coords=(*raw_cam2v[0].values(), *raw_cam2v[1:]),
+            keys=cam_labels[cam1]
+        )
+
+        ax = fig.add_subplot(2, 2, i+1, projection='3d')
+        for label, coord in trian_dict.items():
+            ax.scatter(*coord, label=label)
+        ax.legend()
+        ax.set_title('%s %s' % pair).set_y(1.005)
+
+    fig.suptitle('Triangulation visualization')
+    fig.savefig(os.path.join(test_dir, 'visualize_triangulation.png'))
