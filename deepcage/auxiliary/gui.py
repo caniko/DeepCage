@@ -10,9 +10,9 @@ from .detect import detect_bonsai, detect_cage_calibration_images
 from .constants import CAMERAS
 
 
-def get_title(camera_name, axis_name, input_istip, direction):
+def get_title(camera_name, axis_name, direction, istip):
     return '{camera_name}\nClick on {} tip of the {} on the {} side'.format(
-        'the' if input_istip else 'a point an decrement from\nthe',
+        'the' if istip else 'a point an decrement from\nthe',
         axis_name, direction, camera_name=camera_name
     )
     
@@ -59,15 +59,15 @@ def basis_label(config_path, image_paths=None, decrement=False):
 
         if decrement is True:
             basis_labels[camera] = (
-                {direction: [get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], istip, direction)) for istip in (True, False)] for direction in ('positive', 'negative')},
-                [get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], istip, axis[1][1])) for istip in (True, False)],
-                [get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', istip, 'positive')) for istip in (True, False)]
+                {direction: [get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], direction, istip)) for istip in (True, False)] for direction in ('positive', 'negative')},
+                [get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], axis[1][1], istip)) for istip in (True, False)],
+                [get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', 'positive', istip)) for istip in (True, False)]
             )
         else:
             basis_labels[camera] = (
                 {direction: get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], True, direction)) for direction in ('positive', 'negative')},
-                get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], True, axis[1][1])),
-                get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', True, 'positive')),
+                get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], axis[1][1], True)),
+                get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', 'positive', True)),
                 get_coord(cam_img, n=n, title='Select origin')
             )
 

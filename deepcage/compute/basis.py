@@ -13,7 +13,7 @@ import os
 from deepcage.auxiliary.detect import detect_triangulation_result
 from deepcage.auxiliary.constants import CAMERAS, get_pairs
 from deepcage.project.edit import read_config, get_dlc3d_configs
-from deepcage.project.get import get_labels
+from deepcage.project.get import get_labels, get_paired_labels
 
 from .triangulate import triangulate_raw_2d_camera_coords, triangulate_basis_labels
 from .utils import unit_vector, change_basis_func
@@ -37,9 +37,6 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
     elif os.path.exists(dataframe_path):
         msg = 'Please remove old analysis file before proceeding. File paths:\n%s\n' % dataframe_path
 
-    # Get labels
-    basis_labels = get_labels(config_path)
-
     pairs = tuple(dlc3d_cfgs.keys())
     stereo_cam_units, orig_maps = {}, {}
     for pair in pairs:
@@ -47,6 +44,7 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
         dlc3d_cfg = dlc3d_cfgs[pair]
     
         # Get triangulated points for computing basis vectors
+        basis_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
         trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=decrement)
 
         stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement)

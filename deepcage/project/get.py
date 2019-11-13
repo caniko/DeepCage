@@ -25,18 +25,24 @@ def get_paired_labels(config_path, pair):
     raw_cam1v, raw_cam2v = labels[cam1], labels[cam2]
     raw_cam1v[0]['positive']
 
+    if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+        assert CAMERAS[cam1] == CAMERAS[cam2], '%s != %s' % (CAMERAS[cam1], CAMERAS[cam2])
+    else:
+        assert CAMERAS[cam1][1][0] == CAMERAS[cam2][0][0], '%s != %s' % (CAMERAS[cam1][1][0], CAMERAS[cam2][0][0])
+        assert CAMERAS[cam1][0][0] == CAMERAS[cam2][1][0], '%s != %s' % (CAMERAS[cam1][0][0], CAMERAS[cam2][1][0])
+
     return {
         'normal': {
             cam1: {
-                ('%s positive' % CAMERAS[cam1][0][0]): raw_cam1v[0]['positive'],
-                ('%s negative' % CAMERAS[cam1][0][0]): raw_cam1v[0]['negative'],
-                CAMERAS[cam1][1]: raw_cam1v[1],
+                (CAMERAS[cam1][0][0], 'positive'): raw_cam1v[0]['positive'],    # NorthNorth: x-axis
+                (CAMERAS[cam1][0][0], 'negative'): raw_cam1v[0]['negative'],
+                CAMERAS[cam1][1]: raw_cam1v[1],                                     # NorthNorth: y-axis
                 'z-axis': raw_cam1v[2],
                 'origin': raw_cam1v[3]
             },
             cam2: {
-                ('%s positive' % CAMERAS[cam2][0][0]): raw_cam2v[0]['positive'],
-                ('%s negative' % CAMERAS[cam2][0][0]): raw_cam2v[0]['negative'],
+                (CAMERAS[cam2][0][0], 'positive'): raw_cam2v[0]['positive'],
+                (CAMERAS[cam2][0][0], 'negative'): raw_cam2v[0]['negative'],
                 CAMERAS[cam2][1]: raw_cam2v[1],
                 'z-axis': raw_cam2v[2],
                 'origin': raw_cam2v[3]
@@ -44,24 +50,24 @@ def get_paired_labels(config_path, pair):
         },
         'decrement': {
             cam1: {
-                ('%s positive apex' % CAMERAS[cam1][0][0]): raw_cam1v[0]['positive'][0],
-                ('%s positive decrement' % CAMERAS[cam1][0][0]): raw_cam1v[0]['positive'][1],
-                ('%s negative' % CAMERAS[cam1][0][0]): raw_cam1v[0]['negative'][0],
-                ('%s negative decrement' % CAMERAS[cam1][0][0]): raw_cam1v[0]['negative'][1],
-                ('%s apex' % (CAMERAS[cam1][1],)): raw_cam1v[1][0],
-                ('%s decrement' % (CAMERAS[cam1][1],)): raw_cam1v[1][1],
-                'z-axis apex': raw_cam1v[2][0],
-                'z-axis decrement': raw_cam1v[2][1]
+                (CAMERAS[cam1][0][0], 'positive', 'apex'): raw_cam1v[0]['positive'][0],
+                (CAMERAS[cam1][0][0], 'positive', 'decrement'): raw_cam1v[0]['positive'][1],
+                (CAMERAS[cam1][0][0], 'negative', 'apex'): raw_cam1v[0]['negative'][0],
+                (CAMERAS[cam1][0][0], 'negative', 'decrement'): raw_cam1v[0]['negative'][1],
+                (*CAMERAS[cam1][1], 'apex'): raw_cam1v[1][0],
+                (*CAMERAS[cam1][1], 'decrement'): raw_cam1v[1][1],
+                ('z-axis', 'apex'): raw_cam1v[2][0],
+                ('z-axis', 'decrement'): raw_cam1v[2][1]
             },
             cam2: {
-                ('%s positive apex' % CAMERAS[cam2][0][0]): raw_cam2v[0]['positive'][0],
-                ('%s positive decrement' % CAMERAS[cam2][0][0]): raw_cam2v[0]['positive'][1],
-                ('%s negative' % CAMERAS[cam2][0][0]): raw_cam2v[0]['negative'][0],
-                ('%s negative decrement' % CAMERAS[cam2][0][0]): raw_cam2v[0]['negative'][1],
-                ('%s apex' % (CAMERAS[cam2][1],)): raw_cam2v[1][0],
-                ('%s decrement' % (CAMERAS[cam2][1],)): raw_cam2v[1][1],
-                'z-axis apex': raw_cam2v[2][0],
-                'z-axis decrement': raw_cam2v[2][1]
+                (CAMERAS[cam2][0][0], 'positive', 'apex'): raw_cam2v[0]['positive'][0],
+                (CAMERAS[cam2][0][0], 'positive', 'decrement'): raw_cam2v[0]['positive'][1],
+                (CAMERAS[cam2][0][0], 'negative', 'apex'): raw_cam2v[0]['negative'][0],
+                (CAMERAS[cam2][0][0], 'negative', 'decrement'): raw_cam2v[0]['negative'][1],
+                (*CAMERAS[cam2][1], 'apex'): raw_cam2v[1][0],
+                (*CAMERAS[cam2][1], 'decrement'): raw_cam2v[1][1],
+                ('z-axis', 'apex'): raw_cam2v[2][0],
+                ('z-axis', 'decrement'): raw_cam2v[2][1]
             }
         }
     }

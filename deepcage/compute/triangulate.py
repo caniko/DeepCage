@@ -75,7 +75,7 @@ def triangulate_raw_2d_camera_coords(
     
 
     cam1_coords = np.array(cam1_coords, dtype=np.float64)
-    cam2_coords = np.array(cam1_coords, dtype=np.float64)
+    cam2_coords = np.array(cam2_coords, dtype=np.float64)
 
     if cam1_coords.shape != cam2_coords.shape:
         msg = "Camera coordinate arrays have different dimensions"
@@ -138,83 +138,56 @@ def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False, key
     # i, ii, iii = CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis'
 
     # Preparing for triangualting image coordinates
-    raw_cam1v = basis_labels[cam1]
-    raw_cam2v = basis_labels[cam2]
+    cam1_labels = basis_labels[cam1]
+    cam2_labels = basis_labels[cam2]
 
-    if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-        assert CAMERAS[cam1] == CAMERAS[cam2], '%s != %s' % (CAMERAS[cam1], CAMERAS[cam2])
-        if decrement is False:
-            trian_keys = (CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis', 'origin')
+    if decrement is False:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            trian_keys = cam1_labels.keys()
+            cam1_coords = tuple(cam1_labels.values())
+            cam2_coords = tuple(cam2_labels.values())
+
         else:
-            trian_keys = (CAMERAS[cam1][0][0], CAMERAS[cam1][1][0], 'z-axis')
-
-    else:
-        assert CAMERAS[cam1][1][0] == CAMERAS[cam2][0][0], '%s != %s' % (CAMERAS[cam1][1][0], CAMERAS[cam2][0][0])
-        assert CAMERAS[cam1][0][0] == CAMERAS[cam2][1][0], '%s != %s' % (CAMERAS[cam1][0][0], CAMERAS[cam2][1][0])
-        if decrement is False:
+            # Corner
             trian_keys = (CAMERAS[cam1][1], CAMERAS[cam2][1], 'z-axis', 'origin')
+            cam1_coords = (
+                cam1_labels[CAMERAS[cam1][1]],                             # EastSouth: x positive
+                cam1_labels[(CAMERAS[cam1][0][0], CAMERAS[cam2][1][1])],   # EastSouth: y negative
+                cam1_labels['z-axis'],
+                cam1_labels['origin']
+            )
+
+            cam2_coords = (
+                cam2_labels[(CAMERAS[cam2][0][0], CAMERAS[cam1][1][1])],   # SouthEast: x positive
+                cam2_labels[CAMERAS[cam2][1]],                             # SouthEast: y negative
+                cam2_labels['z-axis'],
+                cam2_labels['origin']
+            )
+    else:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            trian_keys = cam1_labels.keys()
+            cam1_coords = tuple(cam1_labels.values())
+            cam2_coords = tuple(cam2_labels.values())
+
         else:
+            # Corner
             trian_keys = (
                 (CAMERAS[cam1][1], 'apex'), (CAMERAS[cam1][1], 'decrement'),
                 (CAMERAS[cam2][1], 'apex'), (CAMERAS[cam2][1], 'decrement'),
                 ('z', 'apex'), ('z', 'decrement')
             )
-
-    if decrement is False:
-        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            cam1v = (
-                raw_cam1v[0]['positive'], raw_cam1v[0]['negative'],     # NorthNorth: x-axis
-                raw_cam1v[1],                                           # NorthNorth: y-axis
-                raw_cam1v[2],                                           # z-axis
-                raw_cam1v[3]
+            cam1 = (
+                raw_cam1[1][0], raw_cam1[1][1],                                                   # EastSouth: x positive
+                raw_cam1[0][ CAMERAS[cam2][1][1] ][0], raw_cam1[0][ CAMERAS[cam2][1][1] ][1],     # EastSouth: y negative
+                raw_cam1[2][0], raw_cam1[2][1]
             )
-            cam2v = (
-                raw_cam2v[0]['positive'], raw_cam2v[0]['negative'],
-                raw_cam2v[1],
-                raw_cam2v[2],
-                raw_cam1v[3]
-            )
-
-        else:
-            # Corner
-            cam1v = (
-                raw_cam1v[1],                           # EastSouth: x positive
-                raw_cam1v[0][ CAMERAS[cam2][1][1] ],    # EastSouth: y negative
-                raw_cam1v[2],
-                raw_cam1v[3]
-            )
-            cam2v = (
-                raw_cam2v[0][ CAMERAS[cam1][1][1] ],     # SouthEast: x positive
-                raw_cam2v[1],                            # SouthEast: y negative
-                raw_cam2v[2],
-                raw_cam2v[3]
-            )
-    else:
-        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            cam1v = (
-                raw_cam1v[0]['positive'][0], raw_cam1v[0]['negative'][0],   # NorthNorth: x-axis
-                raw_cam1v[1][0],                                            # NorthNorth: y-axis
-                raw_cam1v[2][0]                                             # z-axis
-            )
-            cam2v = (
-                raw_cam2v[0]['positive'][0], raw_cam2v[0]['negative'][0],
-                raw_cam2v[1][0],
-                raw_cam2v[2][0]
-            )
-        else:
-            # Corner
-            cam1v = (
-                raw_cam1v[1][0], raw_cam1v[1][1],                                                   # EastSouth: x positive
-                raw_cam1v[0][ CAMERAS[cam2][1][1] ][0], raw_cam1v[0][ CAMERAS[cam2][1][1] ][1],     # EastSouth: y negative
-                raw_cam1v[2][0], raw_cam1v[2][1]
-            )
-            cam2v = (
-                raw_cam2v[0][ CAMERAS[cam1][1][1] ][0], raw_cam2v[0][ CAMERAS[cam1][1][1] ][1],     # SouthEast: x positive
-                raw_cam2v[1][0], raw_cam2v[1][1],                                                   # SouthEast: y negative
-                raw_cam2v[2][0], raw_cam2v[2][1]
+            cam2 = (
+                raw_cam2[0][ CAMERAS[cam1][1][1] ][0], raw_cam2[0][ CAMERAS[cam1][1][1] ][1],     # SouthEast: x positive
+                raw_cam2[1][0], raw_cam2[1][1],                                                   # SouthEast: y negative
+                raw_cam2[2][0], raw_cam2[2][1]
             )
 
     return triangulate_raw_2d_camera_coords(
-        dlc3d_cfg, cam1_coords=cam1v, cam2_coords=cam2v,
+        dlc3d_cfg, cam1_coords=cam1_coords, cam2_coords=cam2_coords,
         keys=None if keys is False else trian_keys
     )
