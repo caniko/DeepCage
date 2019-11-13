@@ -67,7 +67,7 @@ def initialise_projects(project_name, experimenter, root, dlc_config, calib_root
     return config_path
 
 
-def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None):
+def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None, dlc_init=False):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
     
@@ -124,7 +124,7 @@ def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_proj
     conf_path = os.path.join(str(project_path), 'config.yaml')
 
     # Check if project directory is in use
-    if os.path.exists(project_path):
+    if dlc_init is False and os.path.exists(project_path):
         if os.path.exists(conf_path):
             print('There is already a project directory is in use by another project.\nPath: {}\nAborting...'.format(project_path))
             return conf_path

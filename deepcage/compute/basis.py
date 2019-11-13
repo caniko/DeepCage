@@ -163,8 +163,10 @@ def compute_basis_vectors(trian, pair, decrement=False):
 
 def change_basis_experiment_coords(pair_roi_df, orig_maps):
     coords = {}
-    for pair, roi_df in pair_roi_df.items():
+    for i, (pair, roi_df) in enumerate(pair_roi_df.items()):
         origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
+        if i == 3:
+            break
         for roi, df in roi_df.items():
             x, y, z = change_basis_func(df, linear_map, origin).T
             coords[(roi, pair, 'x')] = pd.Series(x)

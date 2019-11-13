@@ -90,6 +90,9 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
     results_path = Path(cfg['results_path'])
     triangulated = results_path / 'triangulated'
     experiments = glob(str(triangulated / '*/'))
+    if experiments == []:
+        msg = 'Could not find any triangulated coordinates in %s' % triangulated
+        raise ValueError(msg)
 
     # Detect triangulation results in related DeepLabCut 3D projects
     # Analyse the number of occurances of hdf across projects
@@ -101,7 +104,6 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
 
         regions_of_interest = {}
         for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
-            print(hdf_path)
             cam1, cam2 = os.path.basename(os.path.dirname(hdf_path)).split('_')
             pair = (cam1, cam2)
 

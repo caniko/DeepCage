@@ -4,7 +4,13 @@ from deepcage.project import (
     triangulate_bonvideos,
 )
 from deepcage.auxiliary.detect import detect_triangulation_result
-from deepcage.compute import create_stereo_cam_origmap, map_coords, visualize_basis_vectors, plot_triangulated
+from deepcage.compute import (
+    visualize_workflow,
+    visualize_triangulation,
+    visualize_basis_vectors,
+    create_stereo_cam_origmap,
+    map_coords
+)
 import os
 
 
@@ -12,7 +18,7 @@ VIDEO_ROOT = os.path.realpath('H:/Can_cage/BonsaiRecordings/MROS_V1')
 
 project_name = 'DeepCage_MROS_V1'
 experimenter = 'Can'
-root = os.path.realpath('H:/Can_cage/DeepCage_DLC_files/DCage_1')
+root = os.path.realpath('H:/Can_cage/DeepCage_DLC_files')
 dlc_config = os.path.join(root, 'DeepLabCut/DeepCage-Can-2019-10-26/config.yaml')
 calib_root = os.path.realpath('C:/Users/Can/Projects/CINPLA/Thesis_ReconstructCage/calibration/camera/BonRecordings')
 
@@ -25,10 +31,11 @@ config_path = os.path.join(root, 'DeepCage_MROS_V1-Can-2019-10-30/config.yaml')
 
 # triangulate_bonvideos(config_path, VIDEO_ROOT, gputouse=0, vformat='avi')
 
-# create_stereo_cam_origmap(config_path)
+# visualize_workflow(config_path)
+# visualize_triangulation(config_path)
 # visualize_basis_vectors(config_path)
-plot_triangulated(config_path)
 
 # detect_triangulation_result(config_path)
 
+# create_stereo_cam_origmap(config_path)
 # map_coords(config_path, paralell=False)

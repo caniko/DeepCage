@@ -1,9 +1,20 @@
 import matplotlib.pyplot as plt
+from pandas import read_hdf
 import numpy as np
 import vg
 
+from tqdm import tqdm
+import cv2
+
+import concurrent.futures
+import subprocess
 import pickle
+
+from pathlib import Path
+from glob import glob
 import os
+
+from deeplabcut.pose_estimation_3d.plotting3D import plot2D
 
 from deepcage.project.edit import read_config, get_dlc3d_configs
 from deepcage.project.get import get_labels, get_paired_labels
@@ -86,7 +97,7 @@ def visualize_workflow(config_path, decrement=False):
         ii_iii = vg.angle(ii, iii)
 
         title_text2 = 'r1-r2: %3f r1-r3: %3f\nr2-r3: %3f' % (i_ii, i_iii, ii_iii)
-        ax2.set_title(title_text2, fontsize=20).set_y(1.005)
+        ax2.set_title(title_text2).set_y(1.005)
         ax2.legend()
 
         fig.savefig( os.path.join(figure_dir, '%d_%s_%s.png' % (PAIR_IDXS[pair], *pair)) )
@@ -153,21 +164,147 @@ def visualize_basis_vectors(config_path, decrement=False):
 
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111, projection='3d')
-    n = np.linspace(-1, 5, 100)
-    c_spacing = 1 / (len(pairs) * 2 - 2)
+    n = np.linspace(0, 5, 100)
+    c_spacing = 1 / (len(pairs) - 2)
     for i, pair in enumerate(pairs):
         cam1, cam2 = pair
         basis_vectors = []
+        text_locations = []
         for axis in orig_maps[pair]['map'].T:
-            basis_vectors.append(n * (axis-orig_maps[pair]['origin'])[np.newaxis, :].T)
+            basis_vectors.append(n * (axis - orig_maps[pair]['origin'])[np.newaxis, :].T)
+            text_locations.append(6 * (axis - orig_maps[pair]['origin'])[np.newaxis, :].T)
 
-        rem_space = c_spacing * i * 2
-        colors = plt.cm.rainbow(np.linspace(rem_space, rem_space+0.09, 3))
+        rem_space = c_spacing * i
+        colors = plt.cm.rainbow(np.linspace(rem_space, rem_space+0.12, 3))
         r_1, r_2, r_3 = basis_vectors
+        t_1, t_2, t_3 = text_locations
+
         ax.plot(*r_1, label='%s %s r1' % pair, c=colors[0])
+        ax.text(*t_1, label='r1', c=colors[0])
+
         ax.plot(*r_2, label='%s %s r2' % pair, c=colors[1])
+        ax.text(*t_2, label='r2', c=colors[1])
+
         ax.plot(*r_3, label='%s %s r3/z' % pair, c=colors[2])
+        ax.text(*t_3, label='r3', c=colors[2])
 
     ax.set_title('Basis comparison', fontsize=20).set_y(1.005)
-    ax.legend(loc='best')
+    ax.legend(loc=2)
     fig.savefig( os.path.join(test_dir, 'visualize_basis_vectors.png') )
+
+
+def dlc3d_create_labeled_video(config_path):
+    '''
+    Augmented function from https://github.com/AlexEMG/DeepLabCut
+
+    Create pairwise videos
+    
+    '''
+
+    start_path = os.getcwd()
+
+    cfg = read_config(config_path)
+    triangulate_path = os.path.join(cfg['results_path'], 'triangulated')
+    print(triangulate_path)
+    if not os.path.exists(triangulate_path) or 0 == len(glob(os.path.join(triangulate_path, '*'))):
+        msg = 'Could not detect triangulated coordinates in %s' % triangulate_path
+        raise ValueError(msg)
+    triangulate_path = Path(triangulate_path)
+
+    skipped = []
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
+    futures = {}
+    # with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+    for pair, dlc3d_cfg_path in dlc3d_cfgs.items():
+        dlc3d_cfg = read_config(dlc3d_cfg_path)
+        pcutoff = dlc3d_cfg['pcutoff']
+        markerSize = dlc3d_cfg['dotsize']
+        alphaValue = dlc3d_cfg['alphaValue']
+        cmap = dlc3d_cfg['colormap']
+        skeleton_color = dlc3d_cfg['skeleton_color']
+        scorer_3d = dlc3d_cfg['scorername_3d']
+
+        bodyparts2connect = dlc3d_cfg['skeleton']
+        bodyparts2plot = list(np.unique([val for sublist in bodyparts2connect for val in sublist]))
+        color = plt.cm.get_cmap(cmap, len(bodyparts2plot))
+
+        cam1, cam2 = pair
+
+        dlc3d_project_path = os.path.join(os.path.dirname(dlc3d_cfg_path), 'videos')
+        cam1_videos = glob(os.path.join(dlc3d_project_path, ('*%s*' % cam1)))
+        cam2_videos = glob(os.path.join(dlc3d_project_path, ('*%s*' % cam2)))
+
+        for i, v_path in enumerate(cam1_videos):
+            _, video_name = os.path.split(v_path)
+            cam1_video, cam2_video = cam1_videos[i], cam2_videos[i]
+            a_id, trial, vcam, date = video_name.replace('.avi', '').split('_')
+            futures[create_video(
+                # Paths
+                triangulate_path, cam1_video, cam2_video,
+                # ID
+                a_id, trial, vcam, date, pair,
+                # Config
+                dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
+                bodyparts2plot, bodyparts2connect, color
+            )] = (a_id, trial, vcam, date, pair)
+
+    # for future in concurrent.futures.as_completed(futures):
+    #     video_id = futures[future]
+    #     try:
+    #         result = future.result()
+    #     except Exception as exc:
+    #         print('%s generated an exception: %s' % (video_id, exc))
+    #     else:
+    #         print('%s = %s' % (video_id, result))
+
+    os.chdir(start_path)
+
+
+def create_video(
+        # Paths
+        triangulate_path, cam1_video, cam2_video,
+        # ID
+        a_id, trial, vcam, date, pair,
+        # Config
+        dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
+        bodyparts2plot, bodyparts2connect, color
+    ):
+    cam1, cam2 = pair
+
+    trial_trian_result_path = triangulate_path / ('%s_%s_%s' % (a_id, trial, date)) / ('%s_%s' % pair)
+
+    xyz_path = glob(str(trial_trian_result_path / '*_DLC_3D.h5'))[0]
+    xyz_df = read_hdf(xyz_path, 'df_with_missing')
+
+    try:
+        df_cam1 = read_hdf(glob(str(trial_trian_result_path / ('*%s*filtered.h5' % cam1)))[0])
+        df_cam2 = read_hdf(glob(str(trial_trian_result_path / ('*%s*filtered.h5' % cam2)))[0])
+    except FileNotFoundError:
+        df_cam1 = read_hdf(glob(str(trial_trian_result_path / ('*%s*.h5' % cam1)))[0])
+        df_cam2 = read_hdf(glob(str(trial_trian_result_path / ('*%s*.h5' % cam2)))[0])
+
+    vid_cam1 = cv2.VideoCapture(cam1_video)
+    vid_cam2 = cv2.VideoCapture(cam2_video)
+    file_name = '%s_%s_%s_%s_%s' % (a_id, trial, date, cam1, cam2)
+    for k in tqdm(tuple(range(0, len(xyz_df)))):
+        output_folder, num_frames = plot2D(
+            dlc3d_cfg, k, bodyparts2plot, vid_cam1, vid_cam2,
+            bodyparts2connect, df_cam1, df_cam2, xyz_df, pcutoff,
+            markerSize,alphaValue, color, trial_trian_result_path,
+            file_name, skeleton_color, view=[-113, -270],
+            draw_skeleton=True, trailpoints=0,
+            xlim=(None, None), ylim=(None, None), zlim=(None, None)
+        )
+    
+    cwd = os.getcwd()
+    os.chdir(str(output_folder))
+    subprocess.call([
+        'ffmpeg',
+        '-threads', '0',
+        '-start_number', '0',
+        '-framerate', '30',
+        '-i', str('img%0' + str(num_frames) + 'd.png'),
+        '-r', '30', '-vb', '20M',
+        os.path.join(output_folder, str('../' + file_name + '.mpg')),
+    ])
+    os.chdir(cwd)

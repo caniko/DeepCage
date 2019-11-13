@@ -52,7 +52,7 @@ def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
             assert (pair_id1, session_trial1) == (pair_id2, session_trial2), fail_msg
             assert int(cam_pair_id1) == 0 and int(cam_pair_id2) == 1
 
-            destfolder = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date)) / ('%s_%s' % pair)
+            destfolder = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date)) / ('%d_%s_%s' % (PAIR_IDXS[pair], *pair))
             destfolders[pair].append(destfolder)
             if not os.path.exists(destfolder):
                 os.makedirs(destfolder)
