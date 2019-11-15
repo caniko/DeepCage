@@ -5,7 +5,7 @@ import os
 
 from deeplabcut.utils import auxiliaryfunctions_3d
 
-from deepcage.project.edit import read_config, get_dlc3d_configs
+from deepcage.project.edit import read_config
 from deepcage.auxiliary.constants import CAMERAS
 from deepcage.auxiliary.gui import get_coord
 

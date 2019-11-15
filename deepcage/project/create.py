@@ -2,12 +2,13 @@ from warnings import warn
 import concurrent.futures
 import yaml, ruamel.yaml
 
-from shutil import copyfile
+from shutil import copyfile, copytree
 from pathlib import Path
 from glob import glob
 import os
 
 from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
+from deepcage.auxiliary.logistics import dlc3d_video_migrate
 from deepcage.auxiliary.detect import detect_bonsai
 
 from .edit import read_config, write_config, get_dlc3d_configs
@@ -15,7 +16,7 @@ from .edit import read_config, write_config, get_dlc3d_configs
 
 def create_project_old_cage(
         new_project_name, old_cage_config, new_root,
-        videos=None, bonvideos=None,
+        video_root=None, bonvideos=None, video_extension='avi',
         dlc_project_config='', dlc_working_dir=None,
         new_experimenter=None,
     ):
@@ -52,8 +53,8 @@ def create_project_old_cage(
 
     # Prepare simple variables
     cfg = read_config(old_cage_config)
-    dlcrd_cfg_paths = cfg['dlc3d_project_configs']
-    experimenter = cfg['experimenter'] if new_experimenter is None else new_experimenter
+    dlcrd_cfg_paths = dict(cfg['dlc3d_project_configs'])
+    experimenter = cfg['scorer'] if new_experimenter is None else new_experimenter
 
     # Create DeepCage project
     new_cfg_path = create_dc_project(
@@ -65,8 +66,8 @@ def create_project_old_cage(
 
     # Dedicate DeepLabCut 2D project (pre-defined or new; arg dependent)
     if dlc_project_config is '':
-        if videos is not None:
-            rem_videos = videos
+        if video_root is not None:
+            rem_videos = glob(os.path.join(video_root, ('**/*.%s' % video_extension) ))
         elif bonvideos is not None:
             rem_videos = detect_bonsai(bonvideos)
         else:
@@ -86,9 +87,11 @@ def create_project_old_cage(
 
     # Create a copy of every DLC 3d project in the previous project
     new_dlc_path = os.path.join(os.path.dirname(new_cfg_path), 'DeepLabCut')
-    os.mkdir(new_dlc_path)
+    if not os.path.exists(new_dlc_path):
+        os.mkdir(new_dlc_path)
+
     new_dlc3d_cfg_paths = {}
-    for pair, path in dlcrd_cfg_paths.item():
+    for pair, path in dlcrd_cfg_paths.items():
         cam1, cam2 = pair
         dlc3d_root = os.path.dirname(path)
         dlc3d_id = os.path.basename(dlc3d_root)
@@ -96,14 +99,14 @@ def create_project_old_cage(
         # Create the project folder
         new_dlc3d_root = os.path.join(new_dlc_path, dlc3d_id)
         os.mkdir(new_dlc3d_root)
-
-        for filename in glob(os.path.join(dlc3d_root, '*')):
-            if filename != 'videos':
-                name = os.path.basename(filename)
-                copyfile(
-                    os.path.realpath(filename),
-                    os.path.join(new_dlc3d_root, name)
-                )
+        copytree(
+            os.path.join(dlc3d_root, 'camera_matrix'),
+            os.path.join(new_dlc3d_root, 'camera_matrix')
+        )
+        copyfile(
+            os.path.join(dlc3d_root, 'config.yaml'),
+            os.path.join(new_dlc3d_root, 'config.yaml')
+        )
 
         # Modify the copied config.yaml file
         new_dlc3d_cfg_path = os.path.join(new_dlc3d_root, 'config.yaml')
@@ -117,6 +120,10 @@ def create_project_old_cage(
 
     new_cfg['dlc3d_project_configs'] = new_dlc3d_cfg_paths
     write_config(new_cfg_path, new_cfg)
+
+    if video_root is not None:
+        dlc3d_video_migrate(new_cfg_path, video_root)
+        print('Copied videos from %s to new project' % video_root)
 
     print('Created new DeepCage project:\n%s' % project_path)
     if dlc_project_config == '':
