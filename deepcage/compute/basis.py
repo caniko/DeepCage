@@ -165,14 +165,13 @@ def change_basis_experiment_coords(pair_roi_df, orig_maps):
     coords = {}
     for i, (pair, roi_df) in enumerate(pair_roi_df.items()):
         origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
-        if i == 3:
-            break
         for roi, df in roi_df.items():
             x, y, z = change_basis_func(df, linear_map, origin).T
             coords[(roi, pair, 'x')] = pd.Series(x)
             coords[(roi, pair, 'y')] = pd.Series(y)
             coords[(roi, pair, 'z')] = pd.Series(z)
-    return pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
+    df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
+    return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]
 
 
 def map_coords(config_path, suffix='_DLC_3D.h5', paralell=False):

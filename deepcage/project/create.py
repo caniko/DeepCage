@@ -7,64 +7,120 @@ from pathlib import Path
 from glob import glob
 import os
 
-from deepcage.project.edit import read_config, write_config, get_dlc3d_configs
 from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
+from deepcage.auxiliary.detect import detect_bonsai
 
-from .analysis import calibrate_dlc_cameras
-from .utils import png_to_jpg
+from .edit import read_config, write_config, get_dlc3d_configs
 
 
-def initialise_projects(project_name, experimenter, root, dlc_config, calib_root):
-    '''
-    Initialise a DeepCage project along with the DeepLabCut 3D for each stereo camera. Following the creation of these DLC 3D projects,
-    detect calibration images located in a standard Bonsai project (can be found in examples in repo); move the images to their respective
-    DLC 3D projects. Run deeplabcut.calibrate_cameras(calibrate=False) for each DLC 3D project,
-    and prepare for quality assurance of the checkerboard detections.
+def create_project_old_cage(
+        new_project_name, old_cage_config, new_root,
+        videos=None, bonvideos=None,
+        dlc_project_config='', dlc_working_dir=None,
+        new_experimenter=None,
+    ):
+    """
+    Create new DeepCageProject assembly with the use of a different cage proejct.
+    Function used for migrating DeepCage constants to other projects
+    
+    The assembly migrations includes all DeepLabCut 3D projects, (optional) creating a new DLC 2D project,
+    copying new videos to the new project.
     
     Parameters
     ----------
-    project_name : str
-        String containing the project_name of the project.
-    experimenter : str
-        String containing the project_name of the experimenter/scorer.
-    root : string
-        String containing the full path of to the directory where the new project files should be located
-    dlc_config : string
-        String containing the full path of to the dlc config.yaml file that will be used for the dlc 3D projects
-    calib_root : string
-        String containing the full path of to the root directory storing the calibration files for each dlc 3D project
-    '''
-    from deepcage.auxiliary.detect import detect_dlc_calibration_images
-    from deeplabcut.create_project import create_new_project_3d
+    new_project_name : str
+        String containing the name of the new project.
+        
+    old_cage_config : str
+        String containing the full path to the old(!) DeepCage project config.yaml file.
 
-    dlc3d_project_configs = {}
+    new_root : str-like
+        Object containing the full path to the project, must have __str__() or method accepted by pathlib.Path()
 
-    with concurrent.futures.ProcessPoolExecutor(max_worker=4) as executor:
-        for pair, calib_paths in detect_dlc_calibration_images(calib_root).items():
-            cam1, cam2 = pair
+    dlc_project_config : str; default '' (empty-string)
+        String containing the full path to the DeepLabCut project config.yaml file.
 
-            name = '%d_%s_%s' % (PAIR_IDXS[pair], cam1, cam2)
-            dlc3d_project_configs[pair] = create_new_project_3d(name, experimenter, num_cameras=2, working_directory=root)
-            project_path = Path(os.path.dirname(dlc3d_project_configs[pair]))
+    dlc_working_dir : str; default, None -> project_path
+        The directory where the optional DeepLabCut 2D project will be created.
 
-            calibration_images_path = project_path / 'calibration_images'
-            if not os.path.exists(calibration_images_path):
-                os.makedirs(calibration_images_path)
+    new_experimenter : str; default None
+        String containing the project_name of the new experimenter/scorer.
 
-            executor.submit(png_to_jpg, calibration_images_path, img_paths=calib_paths)
-            
-            cfg = read_config(dlc3d_project_configs[pair])
-            cfg['config_file_camera-1'] = dlc_config
-            cfg['config_file_camera-2'] = dlc_config
-            cfg['camera_names'] = list(pair)
-            cfg['trainingsetindex_'+cam1] = cfg.pop('trainingsetindex_camera-1')
-            cfg['trainingsetindex_'+cam2] = cfg.pop('trainingsetindex_camera-2')
-            write_config(dlc3d_project_configs[pair], cfg)
+    """
 
-    config_path = create_dc_project(project_name, experimenter, dlc_config, dlc3d_project_configs, working_directory=root)
+    from deeplabcut.utils.auxiliaryfunctions import write_config_3d
 
-    calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9)
-    return config_path
+    # Prepare simple variables
+    cfg = read_config(old_cage_config)
+    dlcrd_cfg_paths = cfg['dlc3d_project_configs']
+    experimenter = cfg['experimenter'] if new_experimenter is None else new_experimenter
+
+    # Create DeepCage project
+    new_cfg_path = create_dc_project(
+        new_project_name, experimenter, dlc_project_config,
+        dlc3d_project_configs={}, working_directory=new_root,
+    )
+    project_path = os.path.dirname(new_cfg_path)
+    new_cfg = read_config(new_cfg_path)
+
+    # Dedicate DeepLabCut 2D project (pre-defined or new; arg dependent)
+    if dlc_project_config is '':
+        if videos is not None:
+            rem_videos = videos
+        elif bonvideos is not None:
+            rem_videos = detect_bonsai(bonvideos)
+        else:
+            msg = 'No DeepLabCut 2D project was provided along with no video source, can not create dlc 2d project'
+            raise ValueError(msg)
+
+        from deeplabcut.create_project.new import create_new_project
+
+        dlc_create_root = dlc_working_dir if dlc_working_dir is not None else project_path
+        dlc_path = create_new_project(
+            new_project_name, experimenter, rem_videos,
+            working_directory=dlc_create_root, copy_videos=True, videotype='.avi'
+        )
+    else:
+        dlc_path = dlc_project_config
+    new_cfg['dlc_project_config'] = dlc_path    # Add DLC 2D project to new DeepCage config file
+
+    # Create a copy of every DLC 3d project in the previous project
+    new_dlc_path = os.path.join(os.path.dirname(new_cfg_path), 'DeepLabCut')
+    os.mkdir(new_dlc_path)
+    new_dlc3d_cfg_paths = {}
+    for pair, path in dlcrd_cfg_paths.item():
+        cam1, cam2 = pair
+        dlc3d_root = os.path.dirname(path)
+        dlc3d_id = os.path.basename(dlc3d_root)
+
+        # Create the project folder
+        new_dlc3d_root = os.path.join(new_dlc_path, dlc3d_id)
+        os.mkdir(new_dlc3d_root)
+
+        for filename in glob(os.path.join(dlc3d_root, '*')):
+            if filename != 'videos':
+                name = os.path.basename(filename)
+                copyfile(
+                    os.path.realpath(filename),
+                    os.path.join(new_dlc3d_root, name)
+                )
+
+        # Modify the copied config.yaml file
+        new_dlc3d_cfg_path = os.path.join(new_dlc3d_root, 'config.yaml')
+        new_dlc3d_cfg = read_config(new_dlc3d_cfg_path)
+        new_dlc3d_cfg['project_path'] = new_dlc3d_root
+        new_dlc3d_cfg['config_file_%s' % cam1] = dlc_path
+        new_dlc3d_cfg['config_file_%s' % cam2] = dlc_path
+        write_config_3d(new_dlc3d_cfg_path, new_dlc3d_cfg)
+
+        new_dlc3d_cfg_paths[pair] = new_dlc3d_root
+
+    new_cfg['dlc3d_project_configs'] = new_dlc3d_cfg_paths
+    write_config(new_cfg_path, new_cfg)
+
+    print('Created new DeepCage project:\n%s' % project_path)
+    if dlc_project_config == '':
+        print('New DeepLabCut 2D project is located in\n%s' % dlc_create_root)
 
 
 def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None, dlc_init=False):

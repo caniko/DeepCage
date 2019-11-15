@@ -9,24 +9,23 @@ from deepcage.project.edit import read_config, get_dlc3d_configs
 from .constants import CAMERAS, get_pairs
 
 
-def detect_bonsai(frames_dir):
+def detect_bonsai(root):
     '''
     Parameters
     ----------
-    frames_dir : string
+    root : string
         String containing the full path of the directory storing BonRecordings related to the project
     '''
     bon_projects = {}
     subs = {}
-    for folder in glob(os.path.join(frames_dir, 'BonRecordings*')):
+    for folder in glob(os.path.join(root, 'BonRecordings*')):
         name, animal, trial, date = os.path.basename(folder).split('_')
         date = date.replace('2019', '19')
         assert name == 'BonRecordings'
 
         bon_projects[(animal, date, trial)] = Path(folder)
-        subs[(animal, date, trial)] = '%s-%s-%s' % (animal, date, trial)
-        
-    return bon_projects, subs
+
+    return bon_projects
 
 
 def detect_cage_calibration_images(config_path, img_format='png'):
@@ -50,8 +49,10 @@ def detect_cage_calibration_images(config_path, img_format='png'):
 def detect_dlc_calibration_images(root, img_format='png'):
     subdirs = glob(os.path.join(root, '*/'))
     result = {}
+    print(subdirs)
     for subdir in subdirs:
         subdir = os.path.dirname(subdir)
+        print(subdir)
         idx, fcam1, fcam2 = os.path.basename(subdir).split('_')
         result[(fcam1, fcam2)] = [os.path.realpath(calib_img) for calib_img in glob(os.path.join(subdir, '*.png'))]
 

@@ -38,4 +38,4 @@ config_path = os.path.join(root, 'DeepCage_MROS_V1-Can-2019-10-30/config.yaml')
 # detect_triangulation_result(config_path)
 
 # create_stereo_cam_origmap(config_path)
-# map_coords(config_path, paralell=False)
+map_coords(config_path, paralell=False)
