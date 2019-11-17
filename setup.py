@@ -10,13 +10,16 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 # The file is PEP 440 compliant:
 # https://www.python.org/dev/peps/pep-0440/
 
+dependency_links = [
+    'git+https://github.com/caniko2/read_exdir.git'
+]
 
-install_requires = [
+install_requires =  [
+    'read_exdir @ git+https://github.com/caniko2/read_exdir',
     'openpyxl',
     'tables',
     'pandas',
     'numpy',
-    'neo',
     'vg'
 ]
 
@@ -33,11 +36,13 @@ setup(
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Experimentalists :: Polymaths',
         'Topic :: Biology',
-        'License :: BSD-3-Clause',
+        'License :: LGPL-3.0',
         'Programming Language :: Python :: 3',
     ],
     packages=find_namespace_packages(),
     python_requires='>=3.6',
+    install_requires=install_requires,
+    dependency_links=dependency_links,
     project_urls={
         'Source': 'https://github.com/caniko2/DeepCage',
     },

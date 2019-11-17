@@ -16,16 +16,22 @@ import os
 
 from deeplabcut.pose_estimation_3d.plotting3D import plot2D
 
-from deepcage.project.edit import read_config, get_dlc3d_configs
-from deepcage.project.get import get_labels, get_paired_labels
-from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS
+from deepcage.project.get import get_labels, get_paired_labels, get_dlc3d_configs
+from deepcage.project.edit import read_config
+from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, pair_cycler
 
 from .triangulate import triangulate_basis_labels, triangulate_raw_2d_camera_coords
 from .basis import compute_basis_vectors, create_stereo_cam_origmap
-from .utils import rad_to_deg
+from .utils import rad_to_deg, unit_vector
 
 
 def visualize_workflow(config_path, decrement=False):
+    '''
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    '''
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     basis_labels = get_labels(config_path)
 
@@ -150,6 +156,58 @@ def visualize_triangulation(config_path, decrement=False):
 
 
 def visualize_basis_vectors(config_path, decrement=False):
+    '''
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    '''
+    stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, decrement=False, save=False)
+
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
+
+    cfg = read_config(config_path)
+    test_dir = os.path.join(cfg['data_path'], 'test')
+    if not os.path.exists(test_dir):
+        os.mkdir(test_dir)
+
+    fig = plt.figure(figsize=(12, 10))
+    pairs = tuple(dlc3d_cfgs.keys())
+    pair_num = int(len(pairs) / 2)
+    for i in range(pair_num):
+        pair1 = pairs[i]
+        reds = iter(plt.cm.Reds(np.linspace(0.40, 0.60, 3)))
+
+        pair2 = pair_cycler(i+4, pairs=pairs)
+        blues = iter(plt.cm.Blues(np.linspace(0.40, 0.60, 3)))
+
+        ax = fig.add_subplot(2, 2, i+1, projection='3d')
+        for pair, color in zip((pair1, pair2), (reds, blues)):
+            origin = unit_vector(orig_maps[pair]['origin'])
+            axes = np.apply_along_axis(
+                lambda a: unit_vector(a - origin),
+                arr=orig_maps[pair]['map'].T, axis=1
+            )
+            initials = pair[0][0] + pair[1][0]
+            for i, axis in enumerate(axes):
+                ax.plot3D(
+                    [0, axis[0]], [0, axis[1]], [0, axis[2]],'-',
+                    c=next(color), label='%s: r_%d' % (initials, i)
+                )
+        ax.legend(loc=2)
+        ax.set_title('%s %s and %s %s' % (*pair1, *pair2)).set_y(1.015)
+
+    fig.savefig( os.path.join(test_dir, 'visualize_basis_vectors.png') )
+    plt.show()
+
+
+def visualize_basis_vectors_single(config_path, decrement=False):
+    '''
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    '''
     stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, decrement=False, save=False)
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
@@ -172,7 +230,7 @@ def visualize_basis_vectors(config_path, decrement=False):
         text_locations = []
         for axis in orig_maps[pair]['map'].T:
             basis_vectors.append(n * (axis - orig_maps[pair]['origin'])[np.newaxis, :].T)
-            text_locations.append(6 * (axis - orig_maps[pair]['origin'])[np.newaxis, :].T)
+            text_locations.append(5.5 * (axis - orig_maps[pair]['origin'])[np.newaxis, :].T)
 
         rem_space = c_spacing * i
         colors = plt.cm.rainbow(np.linspace(rem_space, rem_space+0.12, 3))

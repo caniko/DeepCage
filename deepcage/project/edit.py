@@ -4,10 +4,7 @@ from pathlib import Path
 from glob import glob
 import os
 
-
-def get_dlc3d_configs(config_path):
-    cfg = read_config(config_path)
-    return {pair: os.path.realpath(dlcconfig_path) for pair, dlcconfig_path in cfg['dlc3d_project_configs'].items()}
+from .get import get_dlc3d_configs
 
 
 def write_config(config_path, cfg):

@@ -6,14 +6,15 @@ import vg
 from psutil import cpu_count
 from warnings import warn
 import concurrent.futures
+
 from glob import glob
 import pickle
 import os
 
 from deepcage.auxiliary.detect import detect_triangulation_result
 from deepcage.auxiliary.constants import CAMERAS, get_pairs
-from deepcage.project.edit import read_config, get_dlc3d_configs
-from deepcage.project.get import get_labels, get_paired_labels
+from deepcage.project.get import get_dlc3d_configs, get_labels, get_paired_labels
+from deepcage.project.edit import read_config
 
 from .triangulate import triangulate_raw_2d_camera_coords, triangulate_basis_labels
 from .utils import unit_vector, change_basis_func
@@ -22,6 +23,12 @@ from .utils import unit_vector, change_basis_func
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
 def create_stereo_cam_origmap(config_path, decrement=False, save=True):
+    '''
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    '''
     cfg = read_config(config_path)
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     data_path = os.path.realpath(cfg['data_path'])
@@ -163,6 +170,12 @@ def compute_basis_vectors(trian, pair, decrement=False):
 
 def change_basis_experiment_coords(pair_roi_df, orig_maps):
     coords = {}
+    pairs = tuple(pair_roi_df.keys())
+    print(pairs)
+    cat = pd.Categorical(pairs, ordered=True)
+    print(cat)
+    import sys
+    sys.exit
     for i, (pair, roi_df) in enumerate(pair_roi_df.items()):
         origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
         for roi, df in roi_df.items():

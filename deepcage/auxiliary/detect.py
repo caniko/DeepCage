@@ -4,13 +4,16 @@ from pathlib import Path
 from glob import glob
 import os
 
-from deepcage.project.edit import read_config, get_dlc3d_configs
+from deepcage.project.edit import read_config
+from deepcage.project.get import get_dlc3d_configs
 
 from .constants import CAMERAS, get_pairs
 
 
 def detect_bonsai(root):
     '''
+    Detect videos in bonsai projects, and return dict where key is info, and value is path.
+
     Parameters
     ----------
     root : string
@@ -31,7 +34,11 @@ def detect_bonsai(root):
 def detect_cage_calibration_images(config_path, img_format='png'):
     '''
     Detect images in calibration_images folder, and return a dictionary with their paths
-    
+
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
     '''
     camera_names = tuple(CAMERAS.keys())
     image_dir = os.path.realpath(read_config(config_path)['calibration_path'])

@@ -8,8 +8,26 @@ import os
 
 from deepcage.auxiliary.constants import PAIR_IDXS
 
-from .edit import read_config, get_dlc3d_configs
 
+def analyse_dlc_videos(config_path, extract_outliers=False, videotype='.avi'):
+    from .edit import read_config
+
+    cfg = read_config(config_path)
+    dlc_config = cfg['dlc_project_config']
+    dlc_project_dir = Path(dlc_config).parent
+
+    # Get all videos
+    videos = glob(dlc_project_dir / 'videos' / ('*.'+videotype))
+
+    deeplabcut.analyze_videos(dlc_config, videos, videotype='.avi')
+    print('Done analysing')
+
+
+def triangulate_dlc3d_videos(config_path, gputouse=0, vformat='avi'):
+    from .get import get_dlc3d_configs
+
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
+    
 
 def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
     '''
@@ -19,6 +37,9 @@ def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
     '''
 
     from deeplabcut.pose_estimation_3d import triangulate
+
+    from .get import get_dlc3d_configs
+    from .edit import read_config
 
     cfg = read_config(config_path)
     results_path = Path(cfg['results_path'])
@@ -72,6 +93,7 @@ def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
 
 def calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None, paralell=True):
     from deeplabcut import calibrate_cameras
+    from .get import get_dlc3d_configs
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     cpu_cores = cpu_count(logical=False)

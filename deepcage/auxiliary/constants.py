@@ -31,3 +31,12 @@ def get_pairs(camera_names=tuple(CAMERAS.keys())):
         pairs.append(pair)
         
     return pairs
+
+def pair_cycler(idx, pairs=get_pairs()):
+    from itertools import cycle
+
+    circular_linked_list_iterator = cycle(pairs)
+    for n in range(idx):
+        pair = next(circular_linked_list_iterator)
+
+    return pair

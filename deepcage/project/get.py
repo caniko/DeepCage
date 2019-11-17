@@ -3,10 +3,21 @@ import os
 
 from deepcage.auxiliary.constants import CAMERAS
 
-from .edit import read_config
+
+def get_dlc3d_configs(config_path, read=False):
+    from .edit import read_config
+
+    cfg = read_config(config_path)
+
+    if read is False:
+        return {pair: os.path.realpath(dlcconfig_path) for pair, dlcconfig_path in cfg['dlc3d_project_configs'].items()}
+    else:
+        return {pair: read_config(os.path.realpath(dlcconfig_path)) for pair, dlcconfig_path in cfg['dlc3d_project_configs'].items()}
 
 
 def get_labels(config_path):
+    from .edit import read_config
+
     cfg = read_config(config_path)
     data_path = os.path.realpath(cfg['data_path'])
     label_path = os.path.join(data_path, 'labels.pickle')

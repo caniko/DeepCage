@@ -7,11 +7,13 @@ from pathlib import Path
 from glob import glob
 import os
 
+from deeplabcut.generate_training_dataset.frame_extraction import extract_frames
+
 from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
 from deepcage.auxiliary.logistics import dlc3d_video_migrate
-from deepcage.auxiliary.detect import detect_bonsai
 
-from .edit import read_config, write_config, get_dlc3d_configs
+from .edit import read_config, write_config
+from .get import get_dlc3d_configs
 
 
 def create_project_old_cage(
@@ -53,7 +55,7 @@ def create_project_old_cage(
 
     # Prepare simple variables
     cfg = read_config(old_cage_config)
-    dlcrd_cfg_paths = dict(cfg['dlc3d_project_configs'])
+    dlcrd_cfg_paths = get_dlc3d_configs(old_cage_config)
     experimenter = cfg['scorer'] if new_experimenter is None else new_experimenter
 
     # Create DeepCage project
@@ -64,16 +66,18 @@ def create_project_old_cage(
     project_path = os.path.dirname(new_cfg_path)
     new_cfg = read_config(new_cfg_path)
 
+    if video_root is not None:
+        rem_videos = glob(os.path.join(video_root, ('**/*.%s' % video_extension) ))
+    elif bonvideos is not None:
+        from deepcage.auxiliary.detect import detect_bonsai
+
+        rem_videos = detect_bonsai(bonvideos)
+    else:
+        msg = 'No DeepLabCut 2D project was provided along with no video source, can not create dlc 2d project'
+        raise ValueError(msg)
+
     # Dedicate DeepLabCut 2D project (pre-defined or new; arg dependent)
     if dlc_project_config is '':
-        if video_root is not None:
-            rem_videos = glob(os.path.join(video_root, ('**/*.%s' % video_extension) ))
-        elif bonvideos is not None:
-            rem_videos = detect_bonsai(bonvideos)
-        else:
-            msg = 'No DeepLabCut 2D project was provided along with no video source, can not create dlc 2d project'
-            raise ValueError(msg)
-
         from deeplabcut.create_project.new import create_new_project
 
         dlc_create_root = dlc_working_dir if dlc_working_dir is not None else project_path
@@ -128,6 +132,9 @@ def create_project_old_cage(
     print('Created new DeepCage project:\n%s' % project_path)
     if dlc_project_config == '':
         print('New DeepLabCut 2D project is located in\n%s' % dlc_create_root)
+
+    # Extracting frames using k-means
+    extract_frames(path_config_file, userfeedback=False)
 
 
 def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None, dlc_init=False):
