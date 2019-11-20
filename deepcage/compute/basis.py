@@ -12,7 +12,7 @@ import pickle
 import os
 
 from deepcage.auxiliary.detect import detect_triangulation_result
-from deepcage.auxiliary.constants import CAMERAS, get_pairs
+from deepcage.auxiliary.constants import CAMERAS, get_pairs, cage_order_pairs
 from deepcage.project.get import get_dlc3d_configs, get_labels, get_paired_labels
 from deepcage.project.edit import read_config
 
@@ -168,26 +168,25 @@ def compute_basis_vectors(trian, pair, decrement=False):
     return stereo_cam_unit, orig_map
 
 
-def change_basis_experiment_coords(pair_roi_df, orig_maps):
-    coords = {}
+def map_coords(pair_roi_df, orig_maps):
     pairs = tuple(pair_roi_df.keys())
-    print(pairs)
-    cat = pd.Categorical(pairs, ordered=True)
-    print(cat)
-    import sys
-    sys.exit
-    for i, (pair, roi_df) in enumerate(pair_roi_df.items()):
+    pair_order = cage_order_pairs(pairs)
+
+    columns = []
+    coords = {}
+    for pair in pair_order:
+        roi_df = pair_roi_df[pair]
         origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
         for roi, df in roi_df.items():
             x, y, z = change_basis_func(df, linear_map, origin).T
             coords[(roi, pair, 'x')] = pd.Series(x)
             coords[(roi, pair, 'y')] = pd.Series(y)
             coords[(roi, pair, 'z')] = pd.Series(z)
+            columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
     df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
     return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]
 
-
-def map_coords(config_path, suffix='_DLC_3D.h5', paralell=False):
+def map_experiment(config_path, suffix='_DLC_3D.h5', paralell=False):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -233,7 +232,7 @@ def map_coords(config_path, suffix='_DLC_3D.h5', paralell=False):
     if paralell is False or cpu_cores < 2:
         for info, pair_roi_df in coords.items():
             animal, trial, date = info
-            dfs[(animal, trial, date)] = change_basis_experiment_coords(pair_roi_df, orig_maps)
+            dfs[(animal, trial, date)] = map_coords(pair_roi_df, orig_maps)
 
     else:
         submissions = {}
@@ -241,7 +240,7 @@ def map_coords(config_path, suffix='_DLC_3D.h5', paralell=False):
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
             for info, pair_roi_df in coords.items():
                 # info = (animal, trial, date)
-                submissions[executor.submit(change_basis_experiment_coords, pair_roi_df, orig_maps)] = info
+                submissions[executor.submit(map_coords, pair_roi_df, orig_maps)] = info
 
             for future in submissions:
                 info = submissions[future]

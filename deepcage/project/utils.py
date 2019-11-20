@@ -6,10 +6,10 @@ def png_to_jpg(save_dir, img_paths=None, img_root=None, codec='cv'):
     assert os.path.exists(save_dir), 'Does not exist:\n%s' % save_dir
 
     if img_paths is None:
+        if img_root is None:
+            msg = "Either img_paths or img_root has to be defined"
+            ValueError(msg)
         img_paths = glob(os.path.join(img_root, '**/*.png'))
-    elif img_root is None:
-        msg = "Either img_paths or img_root has to be defined"
-        ValueError(msg)
 
     for img in img_paths:
         img_path = os.path.realpath(img)

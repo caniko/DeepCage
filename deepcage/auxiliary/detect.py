@@ -56,10 +56,8 @@ def detect_cage_calibration_images(config_path, img_format='png'):
 def detect_dlc_calibration_images(root, img_format='png'):
     subdirs = glob(os.path.join(root, '*/'))
     result = {}
-    print(subdirs)
     for subdir in subdirs:
         subdir = os.path.dirname(subdir)
-        print(subdir)
         idx, fcam1, fcam2 = os.path.basename(subdir).split('_')
         result[(fcam1, fcam2)] = [os.path.realpath(calib_img) for calib_img in glob(os.path.join(subdir, '*.png'))]
 
@@ -68,7 +66,7 @@ def detect_dlc_calibration_images(root, img_format='png'):
 
 def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
     '''
-    This function changes the basis of deeplabcut-triangulated that are 3D.
+    This function detects and returns the state of deeplabcut-triangulated coordinate h5 files (can be changed)
 
     Parameters
     ----------

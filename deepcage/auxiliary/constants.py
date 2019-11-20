@@ -9,16 +9,18 @@ CAMERAS = {
     'WestSouth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4)
 }
 
+""" Structure of information in CAMERAS var
+'CameraName': (
+    (Axis with visable negative and positive side, Location of positive side relative to origin and new origin),
+    (Axis with one side, Direction of the respective axis side),
+    North->1; East->2; South->3; West->4
+)
+"""
+
 PAIR_IDXS = {
     ('NorthWest', 'NorthEast'): 0, ('NorthEast', 'EastNorth'): 1, ('EastNorth', 'EastSouth'): 2, ('EastSouth', 'SouthEast'): 3,
     ('SouthEast', 'SouthWest'): 4, ('SouthWest', 'WestSouth'): 5, ('WestSouth', 'WestNorth'): 6, ('WestNorth', 'NorthWest'): 7
 }
-
-# 'CameraName': (
-    # (Axis with visable negative and positive side, Location of positive side relative to origin and new origin),
-    # (Axis with one side, direction visable), Direction of the visable side),
-    # North->1; East->2; South->3; West->4
-# )
 
 
 def get_pairs(camera_names=tuple(CAMERAS.keys())):
@@ -40,3 +42,6 @@ def pair_cycler(idx, pairs=get_pairs()):
         pair = next(circular_linked_list_iterator)
 
     return pair
+
+def cage_order_pairs(disordered_list):
+    return [pair for pair in get_pairs() if pair in disordered_list]
