@@ -137,7 +137,10 @@ def create_project_old_cage(
     extract_frames(path_config_file, userfeedback=False)
 
 
-def create_dc_project(project_name, experimenter, dlc_project_config, dlc3d_project_configs, working_directory=None, dlc_init=False):
+def create_dc_project(
+        project_name, experimenter, dlc_project_config,
+        dlc3d_project_configs, working_directory=None, dlc_init=False
+    ):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
     

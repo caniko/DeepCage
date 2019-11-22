@@ -7,8 +7,6 @@ import os
 from deepcage.project.edit import read_config
 from deepcage.project.get import get_dlc3d_configs
 
-from .constants import CAMERAS, get_pairs
-
 
 def detect_bonsai(root):
     '''
@@ -40,6 +38,8 @@ def detect_cage_calibration_images(config_path, img_format='png'):
     config_path : string
         String containing the full path of the project config.yaml file.
     '''
+    from .constants import CAMERAS
+    
     camera_names = tuple(CAMERAS.keys())
     image_dir = os.path.realpath(read_config(config_path)['calibration_path'])
     
@@ -64,7 +64,7 @@ def detect_dlc_calibration_images(root, img_format='png'):
     return result
 
 
-def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False):
+def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False, bonvideos=False):
     '''
     This function detects and returns the state of deeplabcut-triangulated coordinate h5 files (can be changed)
 
@@ -105,19 +105,32 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
     missing = 0
     status, coords, pairs = {}, {}, {}
     for exp_path in experiments:
-        animal, trial, date = os.path.basename(exp_path).split('_')
-        coords[(animal, trial, date)] = {}
+        exp_dir_name = os.path.basename(exp_path)
+        if bonvideos is True:
+            animal, trial, date = exp_dir_name.split('_')
+            coords[(animal, trial, date)] = {}
+        else:
+            coords[exp_dir_name] = {}
 
         regions_of_interest = {}
         for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
-            cam1, cam2 = os.path.basename(os.path.dirname(hdf_path)).split('_')
+            print(os.path.dirname(hdf_path))
+            pair_info = os.path.basename(os.path.dirname(hdf_path)).split('_')
+            if len(pair_info) == 2:
+                cam1, cam2 = pair_info
+            else:
+                idx_, cam1, cam2 = pair_info
             pair = (cam1, cam2)
 
             df = pd.read_hdf(os.path.realpath(hdf_path))['DLC_3D']
             exp_regions_of_interest = df.columns.levels[0]
             regions_of_interest[pair] = exp_regions_of_interest
 
-            coords[(animal, trial, date)][pair] = {roi: df[roi].values for roi in exp_regions_of_interest}
+            coord = {roi: df[roi].values for roi in exp_regions_of_interest}
+            if bonvideos is True:
+                coords[(animal, trial, date)][pair] = coord
+            else:
+                coords[exp_dir_name][pair] = coord
         # print(1)
         # print(all([exp_regions_of_interest == rsoi for rsoi in regions_of_interest]))
 

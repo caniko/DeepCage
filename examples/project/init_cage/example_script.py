@@ -9,6 +9,7 @@ from deepcage.compute import (
     visualize_triangulation,
     visualize_basis_vectors,
     create_stereo_cam_origmap,
+    compute_basis_vectors,
     map_experiment
 )
 import os

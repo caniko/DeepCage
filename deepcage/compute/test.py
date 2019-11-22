@@ -251,7 +251,7 @@ def visualize_basis_vectors_single(config_path, decrement=False):
     fig.savefig( os.path.join(test_dir, 'visualize_basis_vectors.png') )
 
 
-def dlc3d_create_labeled_video(config_path):
+def dlc3d_create_labeled_video(config_path, video_root=None):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
 
@@ -288,9 +288,13 @@ def dlc3d_create_labeled_video(config_path):
 
         cam1, cam2 = pair
 
-        dlc3d_project_path = os.path.join(os.path.dirname(dlc3d_cfg_path), 'videos')
-        cam1_videos = glob(os.path.join(dlc3d_project_path, ('*%s*' % cam1)))
-        cam2_videos = glob(os.path.join(dlc3d_project_path, ('*%s*' % cam2)))
+        if video_root is None:
+            video_root = os.path.join(os.path.dirname(dlc3d_cfg_path), 'videos')
+        else:
+            video_root = os.path.realpath(video_root)
+            
+        cam1_videos = glob(os.path.join(video_root, ('*%s*' % cam1)))
+        cam2_videos = glob(os.path.join(video_root, ('*%s*' % cam2)))
 
         for i, v_path in enumerate(cam1_videos):
             _, video_name = os.path.split(v_path)

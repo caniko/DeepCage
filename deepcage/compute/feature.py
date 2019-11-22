@@ -2,8 +2,6 @@ from numpy.linalg import norm
 import numpy as np
 import vg
 
-from .utils import unit_vector, duovec_midpoint
-
 
 def non_sessile_angle_change(rp, p):
     """
@@ -12,6 +10,7 @@ def non_sessile_angle_change(rp, p):
     p1 : numpy.array-like
     p2 : numpy.array-like
     """
+    from .utils import unit_vector
 
     rp_smaller_idxs = np.where(norm(rp) < norm(p))
     line_vector_smaller = p[rp_smaller_idxs] - rp[rp_smaller_idxs]
@@ -30,6 +29,8 @@ def non_sessile_angle_change(rp, p):
 
 
 def compute_rigid_acceleration(*args, apex=None):
+    from .utils import duovec_midpoint
+
     ar_lenght = len(args)
     if ar_lenght == 1:
         return np.diff(*args)

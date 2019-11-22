@@ -29,7 +29,7 @@ def triangulate_dlc3d_videos(config_path, gputouse=0, vformat='avi'):
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     
 
-def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
+def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, vformat='avi'):
     '''
     Parameters
     ----------
@@ -48,8 +48,11 @@ def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
     videos, destfolders = {}, {}
     experiment_dirs = glob(os.path.join(video_root, '*/'))
     for expdir in experiment_dirs:
-        bon, animal, trial, date = os.path.basename(expdir[:-1]).split('_')
-        assert bon == 'BonRecordings'
+        if bonvideos is True:
+            bon, animal, trial, date = os.path.basename(expdir[:-1]).split('_')
+            assert bon == 'BonRecordings'
+        else:
+            exp_name = str(Path(expdir).stem)
 
         pair_dirs = glob(os.path.join(expdir, '*/'))
         for pair_dir in pair_dirs:
@@ -73,16 +76,21 @@ def triangulate_bonvideos(config_path, video_root, gputouse=0, vformat='avi'):
             assert (pair_id1, session_trial1) == (pair_id2, session_trial2), fail_msg
             assert int(cam_pair_id1) == 0 and int(cam_pair_id2) == 1
 
-            destfolder = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date)) / ('%d_%s_%s' % (PAIR_IDXS[pair], *pair))
+            if bonvideos is True:
+                trial_dir = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date)) 
+            else:
+                trial_dir = results_path / 'triangulated' / exp_name
+
+            destfolder = trial_dir / ('%d_%s_%s' % (PAIR_IDXS[pair], *pair))
             destfolders[pair].append(destfolder)
             if not os.path.exists(destfolder):
                 os.makedirs(destfolder)
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
-    for pair in pairs:
+    for pair, dlc3d_cfg in dlc3d_cfgs.items():
         print('Triangulating videos belonging to %s' % (pair,))
         triangulate(
-            dlc3d_cfgs[pair],
+            dlc3d_cfg,
             videos[pair],
             gputouse=gputouse,
             destfolders=destfolders[pair]

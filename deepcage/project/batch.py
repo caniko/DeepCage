@@ -2,20 +2,22 @@ import concurrent.futures
 
 from pathlib import Path
 from glob import glob
-from copy import copy
 import os
 
+from shutil import copyfile
+from copy import copy
+
+from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
 from deepcage.project.analysis import calibrate_dlc_cameras
 from deepcage.project.create import create_dc_project
 from deepcage.project.edit import read_config
-from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, get_pairs
-from deepcage.auxiliary.detect import detect_dlc_calibration_images
+
 
 
 def initialise_projects(
         project_name, experimenter,
         root, calib_root, video_root, dlc_config=None,
-        video_dir_hierarchy=('trial', 'pair'), copy_videos=False, image_format='png'
+        video_dir_hierarchy=('trial', 'pair'), copy_videos=True, image_format='png'
     ):
     '''
     Initialise a DeepCage project along with the DeepLabCut 3D for each stereo camera. Following the creation of these DLC 3D projects,
@@ -37,6 +39,7 @@ def initialise_projects(
         String containing the full path of to the dlc config.yaml file that will be used for the dlc 3D projects
     '''
     from deeplabcut.create_project import create_new_project_3d, create_new_project
+    from deepcage.auxiliary.detect import detect_dlc_calibration_images
     from deeplabcut.utils.auxiliaryfunctions import write_config_3d
     from .create import create_dc_project
     from .utils import png_to_jpg
@@ -46,26 +49,40 @@ def initialise_projects(
 
     if not os.path.exists(video_root):
         raise ValueError('The path to the video root, does not exist:\n%s' % video_root)
+    
+    if not os.path.exists(root):
+        raise ValueError('The given "root" does not exist:\n%s' % root)
+
+    root_path = Path(root)
+    video_dir = root_path / 'videos'
 
     video_root_subdirs = glob(os.path.join(video_root, '*/'))
+    hierarchy = {}
     videos = []
     if video_dir_hierarchy == ('trial', 'pair'):
-        hierarchy = {}
         for trial in video_root_subdirs:
             trial_name = str(Path(trial).stem)
             pairs_cams_vids = {}
-            for pairs in glob(os.path.join(trial, '*/')):
-                pair_name = str(Path(pairs).stem)
-                for vid in pairs:
-                    pair_id, cam_id, cam, trial = vid.split('_')
-                    vid_path = os.path.realpath(vid)
+            for pair in glob(os.path.join(trial, '*/')):
+                pair_name = str(Path(pair).stem)
+                for vid in glob(os.path.join(pair, '*.avi')):
+                    video_filename = Path(vid).stem
+                    pair_id, cam_id, cam, trial = video_filename.split('_')
+
+                    if copy_videos is True:
+                        new_video_dir = video_dir / trial_name / pair_name
+                        if not os.exists(str(new_video_dir)):
+                            os.makedirs(new_video_dir)
+                        vid_path = new_video_dir / vid
+                        copyfile(vid, vid_path)
+                    else:
+                        vid_path = os.path.realpath(vid)
 
                     pairs_cams_vids[(pairs, cam)] = vid_path
                     videos.append(vid_path)
             hierarchy[trial_name] = copy(pairs_cams_vids)
     else:
         raise ValueError('video_root_depth must be ("trial", "pair")')
-    video_root
 
     if dlc_config is None:
         dlc_config = create_new_project(project_name, experimenter, videos, working_directory=None, copy_videos=False,videotype='.avi')

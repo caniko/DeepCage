@@ -117,7 +117,7 @@ def triangulate_raw_2d_camera_coords(
         src=cam1_coords, cameraMatrix=mtx_l, distCoeffs=dist_l, P=P1, R=R1
     )
     cam2_undistorted_coords = cv2.undistortPoints(
-        src=cam2_coords, cameraMatrix =mtx_r, distCoeffs = dist_r,P=P2,R=R2
+        src=cam2_coords, cameraMatrix=mtx_r, distCoeffs=dist_r, P=P2, R=R2
     )
     homogenous_coords = auxiliaryfunctions_3d.triangulatePoints(P1, P2, cam1_undistorted_coords, cam2_undistorted_coords)
     triangulated_coords = np.array((homogenous_coords[0], homogenous_coords[1], homogenous_coords[2])).T

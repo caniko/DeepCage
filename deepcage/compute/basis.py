@@ -186,7 +186,7 @@ def map_coords(pair_roi_df, orig_maps):
     df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
     return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]
 
-def map_experiment(config_path, suffix='_DLC_3D.h5', paralell=False):
+def map_experiment(config_path, suffix='_DLC_3D.h5', bonvideos=False, paralell=False):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -204,7 +204,7 @@ def map_experiment(config_path, suffix='_DLC_3D.h5', paralell=False):
 
     '''
 
-    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True)
+    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True, bonvideos=bonvideos)
     if coords is False:
         print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
         return False
@@ -231,8 +231,8 @@ def map_experiment(config_path, suffix='_DLC_3D.h5', paralell=False):
     cpu_cores = cpu_count(logical=False)
     if paralell is False or cpu_cores < 2:
         for info, pair_roi_df in coords.items():
-            animal, trial, date = info
-            dfs[(animal, trial, date)] = map_coords(pair_roi_df, orig_maps)
+            # info = (animal, trial, date)
+            dfs[info] = map_coords(pair_roi_df, orig_maps)
 
     else:
         submissions = {}
@@ -253,9 +253,13 @@ def map_experiment(config_path, suffix='_DLC_3D.h5', paralell=False):
 
     print('Attempting to save new coordinates to result folder:\n%s' % result_path)
     for info, df in dfs.items():
-        file_path = os.path.join(result_path, 'mapped_%s_%s_%s' % info)
+        df_name = 'mapped'
+        for i in info.split('_'):
+            df_name += '_'+i
 
-        df.to_hdf(file_path+'.h5', key='a%st%sd%s' % info)
+        file_path = os.path.join(result_path, df_name)
+
+        df.to_hdf(file_path+'.h5', key=df_name if bonvideos is False else 'a%st%sd%s' % info)
         df.to_csv(file_path+'.csv')
         df.to_excel(file_path+'.xlsx')
 
