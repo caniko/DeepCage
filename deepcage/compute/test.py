@@ -357,7 +357,6 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
 
     cfg = read_config(config_path)
     triangulate_path = os.path.join(cfg['results_path'], 'triangulated')
-    print(triangulate_path)
     if not os.path.exists(triangulate_path) or 0 == len(glob(os.path.join(triangulate_path, '*'))):
         msg = 'Could not detect triangulated coordinates in %s' % triangulate_path
         raise ValueError(msg)
@@ -388,11 +387,11 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
             )
             for exp_id, pairs in hierarchy.items():
                 for pair_info, cams in pairs.items():
+                    print(cams)
                     pair_idx, cam1, cam2 = pair_info.split('_')
                     pair = (cam1, cam2)
                     cam1_video, cam2_video = cams.values()
                     info = exp_id
-                    print(glob(os.path.join(str(triangulate_path / exp_id / pair_info), '*_DLC_3D.h5')))
                     futures[create_video(
                         # Paths
                         (triangulate_path / exp_id / pair_info), cam1_video, cam2_video,
@@ -456,8 +455,9 @@ def create_video(
     ):
     cam1, cam2 = pair
 
+    stringified_info = info if isinstance(info, str) else '_'.join(info)
     if new_path is False:
-        trial_trian_result_path = triangulate_path / '_'.join(info) / ('%s_%s' % pair)
+        trial_trian_result_path = triangulate_path / stringified_info / ('%s_%s' % pair)
     else:
         trial_trian_result_path = triangulate_path
 
@@ -473,7 +473,7 @@ def create_video(
 
     vid_cam1 = cv2.VideoCapture(cam1_video)
     vid_cam2 = cv2.VideoCapture(cam2_video)
-    file_name = '%s_%s_%s' % ('_'.join(info), cam1, cam2)
+    file_name = '%s_%s_%s' % (stringified_info, cam1, cam2)
     video_output = os.path.join(trial_trian_result_path, file_name+'.mpg')
     if not os.path.exists(video_output):
         for k in tqdm(tuple(range(0, len(xyz_df)))):
@@ -483,7 +483,7 @@ def create_video(
                 markerSize, alphaValue, color, trial_trian_result_path,
                 file_name, skeleton_color, view=[-113, -270],
                 draw_skeleton=True, trailpoints=0,
-                xlim=(None, None), ylim=(None, None), zlim=(None, None)
+                xlim=[None, None], ylim=[None, None], zlim=[None, None]
             )
         
         cwd = os.getcwd()

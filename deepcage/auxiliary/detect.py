@@ -47,7 +47,8 @@ def detect_videos_in_hierarchy(video_root, deep_dict=False, video_dir_hierarchy=
             for pair in glob(os.path.join(trial, '*/')):
                 pair_name = str(Path(pair).stem)
                 if deep_dict is True:
-                    pairs_cams_vids[pair_name] = {}
+                    # Create dictionary that signifies when
+                    pair_vids = {}
                 for vid in glob(os.path.join(pair, '*.avi')):
                     video_filename = Path(vid).stem
                     pair_id, cam_id, cam, trial = video_filename.split('_')
@@ -60,14 +61,18 @@ def detect_videos_in_hierarchy(video_root, deep_dict=False, video_dir_hierarchy=
                             os.makedirs(new_video_dir)
                         vid_path = new_video_dir / vid
                         copyfile(vid, vid_path)
-
                     videos.append(vid_path)
+
                     if deep_dict is True:
-                        pairs_cams_vids[pair_name][cam] = vid_path
+                        pair_vids[cam] = vid_path
                     else:
                         pairs_cams_vids[(pair_name, cam)] = vid_path
 
-            hierarchy[trial_name] = copy(pairs_cams_vids)
+                if deep_dict is True and pair_vids != {}:
+                    pairs_cams_vids[pair_name] = copy(pair_vids)
+
+            if pairs_cams_vids is not {}:
+                hierarchy[trial_name] = copy(pairs_cams_vids)
     else:
         raise ValueError('video_root_depth must be ("trial", "pair")')
 
