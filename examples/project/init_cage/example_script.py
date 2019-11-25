@@ -10,6 +10,7 @@ from deepcage.compute import (
     visualize_basis_vectors,
     create_stereo_cam_origmap,
     compute_basis_vectors,
+    dlc3d_create_labeled_video,
     map_experiment
 )
 import os
@@ -39,4 +40,5 @@ config_path = os.path.join(root, 'DeepCage_MROS_V1-Can-2019-10-30/config.yaml')
 # detect_triangulation_result(config_path)
 
 # create_stereo_cam_origmap(config_path)
-map_experiment(config_path, paralell=False)
+dlc3d_create_labeled_video(config_path)
+# map_experiment(config_path, paralell=False)

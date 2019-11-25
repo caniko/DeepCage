@@ -38,8 +38,8 @@ def initialise_projects(
     dlc_config : string or None; default None
         String containing the full path of to the dlc config.yaml file that will be used for the dlc 3D projects
     '''
+    from deepcage.auxiliary.detect import detect_dlc_calibration_images, detect_videos_in_hierarchy
     from deeplabcut.create_project import create_new_project_3d, create_new_project
-    from deepcage.auxiliary.detect import detect_dlc_calibration_images
     from deeplabcut.utils.auxiliaryfunctions import write_config_3d
     from .create import create_dc_project
     from .utils import png_to_jpg
@@ -56,36 +56,19 @@ def initialise_projects(
     root_path = Path(root)
     video_dir = root_path / 'videos'
 
-    video_root_subdirs = glob(os.path.join(video_root, '*/'))
-    hierarchy = {}
-    videos = []
-    if video_dir_hierarchy == ('trial', 'pair'):
-        for trial in video_root_subdirs:
-            trial_name = str(Path(trial).stem)
-            pairs_cams_vids = {}
-            for pair in glob(os.path.join(trial, '*/')):
-                pair_name = str(Path(pair).stem)
-                for vid in glob(os.path.join(pair, '*.avi')):
-                    video_filename = Path(vid).stem
-                    pair_id, cam_id, cam, trial = video_filename.split('_')
-
-                    if copy_videos is True:
-                        new_video_dir = video_dir / trial_name / pair_name
-                        if not os.exists(str(new_video_dir)):
-                            os.makedirs(new_video_dir)
-                        vid_path = new_video_dir / vid
-                        copyfile(vid, vid_path)
-                    else:
-                        vid_path = os.path.realpath(vid)
-
-                    pairs_cams_vids[(pairs, cam)] = vid_path
-                    videos.append(vid_path)
-            hierarchy[trial_name] = copy(pairs_cams_vids)
-    else:
-        raise ValueError('video_root_depth must be ("trial", "pair")')
+    hierarchy, videos = detect_videos_in_hierarchy(
+        video_root,
+        video_dir_hierarchy=('trial', 'pair'),
+        copy_video_dir=video_dir if copy_videos is True else None
+    )
 
     if dlc_config is None:
-        dlc_config = create_new_project(project_name, experimenter, videos, working_directory=None, copy_videos=False,videotype='.avi')
+        dlc_config = create_new_project(
+            project_name, experimenter, videos,
+            working_directory=None,
+            copy_videos=False,
+            videotype='.avi'
+        )
 
     dlc3d_project_configs = {}
     with concurrent.futures.ProcessPoolExecutor(max_worker=4) as executor:

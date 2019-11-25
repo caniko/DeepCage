@@ -344,13 +344,14 @@ def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
         fig_all.savefig(str( exp_dir / 'all.png'))
 
 
-def dlc3d_create_labeled_video(config_path, video_root=None):
+def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy=False):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
 
     Create pairwise videos
     
     '''
+    from deepcage.auxiliary.detect import detect_videos_in_hierarchy
 
     start_path = os.getcwd()
 
@@ -381,27 +382,54 @@ def dlc3d_create_labeled_video(config_path, video_root=None):
 
         cam1, cam2 = pair
 
-        if video_root is None:
-            video_root = os.path.join(os.path.dirname(dlc3d_cfg_path), 'videos')
-        else:
-            video_root = os.path.realpath(video_root)
-            
-        cam1_videos = glob(os.path.join(video_root, ('*%s*' % cam1)))
-        cam2_videos = glob(os.path.join(video_root, ('*%s*' % cam2)))
+        if video_dir_hierarchy is True:
+            hierarchy, _ = detect_videos_in_hierarchy(
+                video_root, deep_dict=True
+            )
+            for exp_id, pairs in hierarchy.items():
+                for pair_info, cams in pairs.items():
+                    pair_idx, cam1, cam2 = pair_info.split('_')
+                    pair = (cam1, cam2)
+                    cam1_video, cam2_video = cams.values()
+                    info = exp_id
+                    print(glob(os.path.join(str(triangulate_path / exp_id / pair_info), '*_DLC_3D.h5')))
+                    futures[create_video(
+                        # Paths
+                        (triangulate_path / exp_id / pair_info), cam1_video, cam2_video,
+                        # ID
+                        info, pair,
+                        # Config
+                        dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
+                        bodyparts2plot, bodyparts2connect, color,
+                        # Style
+                        new_path=True
+                    )] = (*info, pair)
 
-        for i, v_path in enumerate(cam1_videos):
-            _, video_name = os.path.split(v_path)
-            cam1_video, cam2_video = cam1_videos[i], cam2_videos[i]
-            a_id, trial, vcam, date = video_name.replace('.avi', '').split('_')
-            futures[create_video(
-                # Paths
-                triangulate_path, cam1_video, cam2_video,
-                # ID
-                a_id, trial, vcam, date, pair,
-                # Config
-                dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
-                bodyparts2plot, bodyparts2connect, color
-            )] = (a_id, trial, vcam, date, pair)
+        else:
+            if video_root is None:
+                video_root = os.path.join(os.path.dirname(dlc3d_cfg_path), 'videos')
+            else:
+                video_root = os.path.realpath(video_root)
+
+            cam1_videos = glob(os.path.join(video_root, ('*%s*' % cam1)))
+            cam2_videos = glob(os.path.join(video_root, ('*%s*' % cam2)))
+
+            for i, v_path in enumerate(cam1_videos):
+                
+                _, video_name = os.path.split(v_path)
+                cam1_video, cam2_video = cam1_videos[i], cam2_videos[i]
+                info = video_name.replace('.avi', '').split('_')
+                futures[create_video(
+                    # Paths
+                    triangulate_path, cam1_video, cam2_video,
+                    # ID
+                    info, pair,
+                    # Config
+                    dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
+                    bodyparts2plot, bodyparts2connect, color,
+                    # Style
+                    new_path=False
+                )] = (*info, pair)
 
     # for future in concurrent.futures.as_completed(futures):
     #     video_id = futures[future]
@@ -419,14 +447,19 @@ def create_video(
         # Paths
         triangulate_path, cam1_video, cam2_video,
         # ID
-        a_id, trial, vcam, date, pair,
+        info, pair,
         # Config
         dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
-        bodyparts2plot, bodyparts2connect, color
+        bodyparts2plot, bodyparts2connect, color,
+        # Style
+        new_path=True
     ):
     cam1, cam2 = pair
 
-    trial_trian_result_path = triangulate_path / ('%s_%s_%s' % (a_id, trial, date)) / ('%s_%s' % pair)
+    if new_path is False:
+        trial_trian_result_path = triangulate_path / '_'.join(info) / ('%s_%s' % pair)
+    else:
+        trial_trian_result_path = triangulate_path
 
     xyz_path = glob(str(trial_trian_result_path / '*_DLC_3D.h5'))[0]
     xyz_df = read_hdf(xyz_path, 'df_with_missing')
@@ -440,26 +473,30 @@ def create_video(
 
     vid_cam1 = cv2.VideoCapture(cam1_video)
     vid_cam2 = cv2.VideoCapture(cam2_video)
-    file_name = '%s_%s_%s_%s_%s' % (a_id, trial, date, cam1, cam2)
-    for k in tqdm(tuple(range(0, len(xyz_df)))):
-        output_folder, num_frames = plot2D(
-            dlc3d_cfg, k, bodyparts2plot, vid_cam1, vid_cam2,
-            bodyparts2connect, df_cam1, df_cam2, xyz_df, pcutoff,
-            markerSize,alphaValue, color, trial_trian_result_path,
-            file_name, skeleton_color, view=[-113, -270],
-            draw_skeleton=True, trailpoints=0,
-            xlim=(None, None), ylim=(None, None), zlim=(None, None)
-        )
-    
-    cwd = os.getcwd()
-    os.chdir(str(output_folder))
-    subprocess.call([
-        'ffmpeg',
-        '-threads', '0',
-        '-start_number', '0',
-        '-framerate', '30',
-        '-i', str('img%0' + str(num_frames) + 'd.png'),
-        '-r', '30', '-vb', '20M',
-        os.path.join(output_folder, str('../' + file_name + '.mpg')),
-    ])
-    os.chdir(cwd)
+    file_name = '%s_%s_%s' % ('_'.join(info), cam1, cam2)
+    video_output = os.path.join(trial_trian_result_path, file_name+'.mpg')
+    if not os.path.exists(video_output):
+        for k in tqdm(tuple(range(0, len(xyz_df)))):
+            output_folder, num_frames = plot2D(
+                dlc3d_cfg, k, bodyparts2plot, vid_cam1, vid_cam2,
+                bodyparts2connect, df_cam1, df_cam2, xyz_df, pcutoff,
+                markerSize, alphaValue, color, trial_trian_result_path,
+                file_name, skeleton_color, view=[-113, -270],
+                draw_skeleton=True, trailpoints=0,
+                xlim=(None, None), ylim=(None, None), zlim=(None, None)
+            )
+        
+        cwd = os.getcwd()
+        os.chdir(str(output_folder))
+        subprocess.call([
+            'ffmpeg',
+            '-threads', '0',
+            '-start_number', '0',
+            '-framerate', '30',
+            '-i', str('img%0' + str(num_frames) + 'd.png'),
+            '-r', '30', '-vb', '20M',
+            os.path.join(output_folder, str('../' + file_name + '.mpg')),
+        ])
+        os.chdir(cwd)
+    else:
+        print('SKIPPING! Video already exists: %s' % video_output)

@@ -1,5 +1,8 @@
 import pandas as pd
 
+from shutil import copyfile
+from copy import copy
+
 from pathlib import Path
 from glob import glob
 import os
@@ -27,6 +30,48 @@ def detect_bonsai(root):
         bon_projects[(animal, date, trial)] = Path(folder)
 
     return bon_projects
+
+
+def detect_videos_in_hierarchy(video_root, deep_dict=False, video_dir_hierarchy=('trial', 'pair'), copy_video_dir=None):
+    '''
+    Find videos stored in a given hierarchy
+    '''
+
+    video_root_subdirs = glob(os.path.join(video_root, '*/'))
+    hierarchy = {}
+    videos = []
+    if video_dir_hierarchy == ('trial', 'pair'):
+        for trial in video_root_subdirs:
+            trial_name = str(Path(trial).stem)
+            pairs_cams_vids = {}
+            for pair in glob(os.path.join(trial, '*/')):
+                pair_name = str(Path(pair).stem)
+                if deep_dict is True:
+                    pairs_cams_vids[pair_name] = {}
+                for vid in glob(os.path.join(pair, '*.avi')):
+                    video_filename = Path(vid).stem
+                    pair_id, cam_id, cam, trial = video_filename.split('_')
+
+                    if copy_video_dir is None:
+                        vid_path = os.path.realpath(vid)
+                    else:
+                        new_video_dir = copy_video_dir / trial_name / pair_name
+                        if not os.exists(str(new_video_dir)):
+                            os.makedirs(new_video_dir)
+                        vid_path = new_video_dir / vid
+                        copyfile(vid, vid_path)
+
+                    videos.append(vid_path)
+                    if deep_dict is True:
+                        pairs_cams_vids[pair_name][cam] = vid_path
+                    else:
+                        pairs_cams_vids[(pair_name, cam)] = vid_path
+
+            hierarchy[trial_name] = copy(pairs_cams_vids)
+    else:
+        raise ValueError('video_root_depth must be ("trial", "pair")')
+
+    return hierarchy, videos
 
 
 def detect_cage_calibration_images(config_path, img_format='png'):
