@@ -57,10 +57,10 @@ def visualize_workflow(config_path, decrement=False):
         # Prepare camera plot labels
         cam_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
 
-        # Plot manually created labels
+        # Plot manual labels
         for cam, cax in zip(pair, (ax3, ax4)):
-            colors = iter(plt.cm.rainbow(np.linspace(0, 1, len(cam_labels[cam]))))
-            for (label, coord), color in zip(cam_labels[cam].items(), colors):
+            cmap = iter(plt.cm.rainbow(np.linspace(0, 1, len(cam_labels[cam]))))
+            for (label, coord), color in zip(cam_labels[cam].items(), cmap):
                 cax.set_title('%s labels' % cam).set_y(1.005)
                 cax.scatter(*coord, c=color, label=label)
                 cax.legend()
@@ -71,8 +71,8 @@ def visualize_workflow(config_path, decrement=False):
             dlc3d_cfg, cam_labels, pair, decrement=decrement, keys=True
         )
 
-        colors = iter(plt.cm.rainbow(np.linspace(0, 1, len(trian_dict)+1)))
-        for (label, coord), color in zip(trian_dict.items(), colors):
+        cmap = iter(plt.cm.rainbow(np.linspace(0, 1, len(trian_dict)+1)))
+        for (label, coord), color in zip(trian_dict.items(), cmap):
             ax1.scatter(*(coord - trian_dict['origin']), c=color, label=label)
 
         if CAMERAS[cam1][0][1] == 'close':
@@ -80,7 +80,7 @@ def visualize_workflow(config_path, decrement=False):
         else:
             c_origin = trian[1] + (trian[0] - trian[1]) / 2
         c_origin -= trian_dict['origin']
-        ax1.scatter(*c_origin, c=next(colors), label='computed origin')
+        ax1.scatter(*c_origin, c=next(cmap), label='computed origin')
 
         ax1.set_title('Triangualted').set_y(1.005)
         ax1.legend()
@@ -218,7 +218,7 @@ def visualize_basis_vectors_single(config_path, decrement=False):
         os.mkdir(test_dir)
 
     pairs = tuple(dlc3d_cfgs.keys())
-    colors = iter(plt.cm.rainbow(np.linspace(0, 1, 2*len(pairs)-2)))
+    cmap = iter(plt.cm.rainbow(np.linspace(0, 1, 2*len(pairs)-2)))
 
     fig = plt.figure(figsize=(12, 10))
     ax = fig.add_subplot(111, projection='3d')
@@ -233,22 +233,115 @@ def visualize_basis_vectors_single(config_path, decrement=False):
             text_locations.append(5.5 * (axis - orig_maps[pair]['origin'])[np.newaxis, :].T)
 
         rem_space = c_spacing * i
-        colors = plt.cm.rainbow(np.linspace(rem_space, rem_space+0.12, 3))
+        cmap = plt.cm.rainbow(np.linspace(rem_space, rem_space+0.12, 3))
         r_1, r_2, r_3 = basis_vectors
         t_1, t_2, t_3 = text_locations
 
-        ax.plot(*r_1, label='%s %s r1' % pair, c=colors[0])
-        ax.text(*t_1, label='r1', c=colors[0])
+        ax.plot(*r_1, label='%s %s r1' % pair, c=cmap[0])
+        ax.text(*t_1, label='r1', c=cmap[0])
 
-        ax.plot(*r_2, label='%s %s r2' % pair, c=colors[1])
-        ax.text(*t_2, label='r2', c=colors[1])
+        ax.plot(*r_2, label='%s %s r2' % pair, c=cmap[1])
+        ax.text(*t_2, label='r2', c=cmap[1])
 
-        ax.plot(*r_3, label='%s %s r3/z' % pair, c=colors[2])
-        ax.text(*t_3, label='r3', c=colors[2])
+        ax.plot(*r_3, label='%s %s r3/z' % pair, c=cmap[2])
+        ax.text(*t_3, label='r3', c=cmap[2])
 
     ax.set_title('Basis comparison', fontsize=20).set_y(1.005)
     ax.legend(loc=2)
     fig.savefig( os.path.join(test_dir, 'visualize_basis_vectors.png') )
+
+
+def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
+    '''
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    '''
+    from matplotlib import cm, colors
+    from math import ceil
+
+    from .basis import map_experiment    
+
+    cfg = read_config(config_path)
+    tracjetory_dir = Path(cfg['data_path']) / 'test' / 'trajectories'
+    if not os.path.exists(tracjetory_dir):
+        os.makedirs(tracjetory_dir)
+
+    dfs = map_experiment(config_path, save=False)
+    # Experimen DFs
+    for exp_info, df in dfs.items():
+        print('Plotting the trajectories of experiment "%s"' % exp_info)
+        # Region of interest DFs
+        exp_dir = tracjetory_dir / exp_info
+        if not os.path.exists(exp_dir):
+            os.mkdir(exp_dir)
+
+        roi_groups = df.groupby(level=0, axis=1)
+        rows_all = ceil(len(roi_groups) / cols)
+
+        fig_all = plt.figure(figsize=(16, 9))
+        fig_all.suptitle(exp_info)
+        for roi_idx, (roi, df_roi) in enumerate(roi_groups):
+            ax_all = fig_all.add_subplot(rows_all, cols, roi_idx+1, projection='3d')
+            ax_all.set_title(roi)
+
+            # Compute number of rows_sep that will be allocated to respective figure
+            fig_separate = plt.figure(figsize=(16, 9))
+            fig_separate.suptitle(roi)
+            
+            cam_groups = df_roi[roi].groupby(level=0, axis=1)
+            rows_sep = ceil(len(cam_groups) / cols)
+
+            frame_ids = df_roi[roi].index.values
+            # Create color map for plot
+            if cm_is_real_idx is True:
+                frames = frame_ids[-1]
+                cmap = plt.cm.rainbow(np.linspace(0, 1, frames))
+            # Camera DFs
+            for cam_idx, (cam, df_cam) in enumerate(cam_groups):
+                coords = df_cam.values
+                if cm_is_real_idx is False:
+                    cmap = plt.cm.rainbow(np.linspace(0, 1, len(coords.shape[0])))
+                ax = fig_separate.add_subplot(rows_sep, cols, cam_idx+1,  projection='3d')
+                ax.set_title(cam)
+
+                # Get trajectories
+                not_nan_locs = np.logical_not(np.any(np.isnan(coords), axis=1))
+                # trajectory_start_locs = np.all(np.dstack((not_nan_locs[:-1], not_nan_locs[1:]))[0], axis=1)
+                incremental_delta_trajectory_start_locs = {}
+                for delta in range(1, 5+1):
+                    # Check if potential point has an end node at <delta> number of increments from it, [i, delta]
+                    incremental_delta_trajectory_start_locs[delta] = np.append(
+                        np.all(np.dstack( (not_nan_locs[:-delta], not_nan_locs[delta:]) )[0], axis=1),
+                        [False] * delta     # Mark the last indeces <delta> as False, because they are either end points or invalid end points (can't be start points)
+                    )
+                # Only use points that have a valid end node, using "incremental_delta_trajectory_start_locs"
+                valid_start_locs = np.any(np.dstack(tuple(incremental_delta_trajectory_start_locs.values()))[0], axis=1)
+                # valid_coords = coords[valid_start_locs]
+
+                trajectory_start_idxs = np.where(valid_start_locs == True)[0]
+
+                # meta_idx is for "cm_is_real_idx is True"
+                for meta_idx, idx in enumerate(trajectory_start_idxs):
+                    delta = 1
+                    while incremental_delta_trajectory_start_locs[delta][trajectory_start_idxs[meta_idx]] is False:
+                        delta += 1
+                    ax.plot(
+                        (coords[idx][0], coords[idx+delta][0]),
+                        (coords[idx][1], coords[idx+delta][1]),
+                        (coords[idx][2], coords[idx+delta][2]),
+                        'x-', c=cmap[frame_ids[idx if cm_is_real_idx is True else meta_idx]]
+                    )
+                    ax_all.plot(
+                        (coords[idx][0], coords[idx+delta][0]),
+                        (coords[idx][1], coords[idx+delta][1]),
+                        (coords[idx][2], coords[idx+delta][2]),
+                        '-', label=cam
+                    )
+
+            fig_separate.savefig(str( exp_dir / ('%s.png' % roi) ))
+        fig_all.savefig(str( exp_dir / 'all.png'))
 
 
 def dlc3d_create_labeled_video(config_path, video_root=None):
