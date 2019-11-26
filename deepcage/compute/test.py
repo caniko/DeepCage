@@ -344,7 +344,7 @@ def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
         fig_all.savefig(str( exp_dir / 'all.png'))
 
 
-def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy=False):
+def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy=False, remove_origin=False):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
 
@@ -361,6 +361,15 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
         msg = 'Could not detect triangulated coordinates in %s' % triangulate_path
         raise ValueError(msg)
     triangulate_path = Path(triangulate_path)
+    
+    if remove_origin is True:
+        basis_result_path = os.path.join(cfg['data_path'], 'cb_result.pickle')
+        try:
+            with open(basis_result_path, 'rb') as infile:
+                stereo_cam_units, orig_maps = pickle.load(infile)
+        except FileNotFoundError:
+            msg = 'Could not detect results from deepcage.compute.generate_linear_map() in:\n%s' % basis_result_path
+            raise FileNotFoundError(msg)
 
     skipped = []
     dlc3d_cfgs = get_dlc3d_configs(config_path)
@@ -387,7 +396,6 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
             )
             for exp_id, pairs in hierarchy.items():
                 for pair_info, cams in pairs.items():
-                    print(cams)
                     pair_idx, cam1, cam2 = pair_info.split('_')
                     pair = (cam1, cam2)
                     cam1_video, cam2_video = cams.values()
@@ -401,6 +409,7 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
                         dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
                         bodyparts2plot, bodyparts2connect, color,
                         # Style
+                        origin_to_remove=orig_maps[pair]['origin'] if remove_origin is True else None,
                         new_path=True
                     )] = (*info, pair)
 
@@ -414,7 +423,6 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
             cam2_videos = glob(os.path.join(video_root, ('*%s*' % cam2)))
 
             for i, v_path in enumerate(cam1_videos):
-                
                 _, video_name = os.path.split(v_path)
                 cam1_video, cam2_video = cam1_videos[i], cam2_videos[i]
                 info = video_name.replace('.avi', '').split('_')
@@ -427,7 +435,8 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
                     dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
                     bodyparts2plot, bodyparts2connect, color,
                     # Style
-                    new_path=False
+                    origin_to_remove=orig_maps[pair]['origin'] if remove_origin is True else None,
+                    new_path=True
                 )] = (*info, pair)
 
     # for future in concurrent.futures.as_completed(futures):
@@ -451,7 +460,7 @@ def create_video(
         dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
         bodyparts2plot, bodyparts2connect, color,
         # Style
-        new_path=True
+        origin_to_remove=None, new_path=True
     ):
     cam1, cam2 = pair
 
@@ -473,7 +482,16 @@ def create_video(
 
     vid_cam1 = cv2.VideoCapture(cam1_video)
     vid_cam2 = cv2.VideoCapture(cam2_video)
-    file_name = '%s_%s_%s' % (stringified_info, cam1, cam2)
+
+    if origin_to_remove is not None:
+        for roi, df_roi in xyz_df['DLC_3D'].groupby(level=0, axis=1):
+            for axis_num, (param, param_df) in enumerate(df_roi[roi].groupby(level=0, axis=1)):
+                xyz_df.loc[:, ('DLC_3D', roi, param)] = xyz_df.loc[:, ('DLC_3D', roi, param)] - origin_to_remove[axis_num]
+
+        file_name = 'new_origin_%s_%s_%s' % (stringified_info, cam1, cam2)
+    else:
+        file_name = '%s_%s_%s' % (stringified_info, cam1, cam2)
+
     video_output = os.path.join(trial_trian_result_path, file_name+'.mpg')
     if not os.path.exists(video_output):
         for k in tqdm(tuple(range(0, len(xyz_df)))):
