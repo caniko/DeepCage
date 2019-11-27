@@ -22,7 +22,7 @@ from deepcage.auxiliary.constants import CAMERAS, PAIR_IDXS, pair_cycler
 
 from .triangulate import triangulate_basis_labels, triangulate_raw_2d_camera_coords
 from .basis import compute_basis_vectors, create_stereo_cam_origmap
-from .utils import rad_to_deg, unit_vector
+from .utils import rad_to_deg, unit_vector, equalise_3daxes, create_df_from_coords
 
 
 def visualize_workflow(config_path, decrement=False):
@@ -251,7 +251,7 @@ def visualize_basis_vectors_single(config_path, decrement=False):
     fig.savefig( os.path.join(test_dir, 'visualize_basis_vectors.png') )
 
 
-def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
+def plot_trajectories(config_path, cm_is_real_idx=True, remap=True, cols=2):
     '''
     Parameters
     ----------
@@ -261,6 +261,7 @@ def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
     from matplotlib import cm, colors
     from math import ceil
 
+    from deepcage.auxiliary.detect import detect_triangulation_result
     from .basis import map_experiment    
 
     cfg = read_config(config_path)
@@ -268,11 +269,19 @@ def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
     if not os.path.exists(tracjetory_dir):
         os.makedirs(tracjetory_dir)
 
-    dfs = map_experiment(config_path, save=False)
+    if remap:
+        dfs = map_experiment(config_path, save=False)
+    else:
+        dfs = create_df_from_coords(detect_triangulation_result(config_path, change_basis=False))
+        if dfs is False:
+            print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
+            return False
+
     # Experimen DFs
     for exp_info, df in dfs.items():
         print('Plotting the trajectories of experiment "%s"' % exp_info)
         # Region of interest DFs
+        exp_info = exp_info if remap else f'unmapped_{exp_info}'
         exp_dir = tracjetory_dir / exp_info
         if not os.path.exists(exp_dir):
             os.mkdir(exp_dir)
@@ -290,21 +299,21 @@ def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
             fig_separate = plt.figure(figsize=(16, 9))
             fig_separate.suptitle(roi)
             
-            cam_groups = df_roi[roi].groupby(level=0, axis=1)
-            rows_sep = ceil(len(cam_groups) / cols)
+            pair_groups = df_roi[roi].groupby(level=0, axis=1)
+            rows_sep = ceil(len(pair_groups) / cols)
 
             frame_ids = df_roi[roi].index.values
             # Create color map for plot
             if cm_is_real_idx is True:
                 frames = frame_ids[-1]
                 cmap = plt.cm.rainbow(np.linspace(0, 1, frames))
-            # Camera DFs
-            for cam_idx, (cam, df_cam) in enumerate(cam_groups):
-                coords = df_cam.values
+            # pair DFs
+            for pair_idx, (pair, df_pair) in enumerate(pair_groups):
+                coords = df_pair.values
                 if cm_is_real_idx is False:
                     cmap = plt.cm.rainbow(np.linspace(0, 1, len(coords.shape[0])))
-                ax = fig_separate.add_subplot(rows_sep, cols, cam_idx+1,  projection='3d')
-                ax.set_title(cam)
+                ax = fig_separate.add_subplot(rows_sep, cols, pair_idx+1,  projection='3d')
+                ax.set_title(pair)
 
                 # Get trajectories
                 not_nan_locs = np.logical_not(np.any(np.isnan(coords), axis=1))
@@ -337,7 +346,7 @@ def plot_trajectories(config_path, cm_is_real_idx=True, cols=2):
                         (coords[idx][0], coords[idx+delta][0]),
                         (coords[idx][1], coords[idx+delta][1]),
                         (coords[idx][2], coords[idx+delta][2]),
-                        '-', label=cam
+                        '-', c=str(1 / pair_idx)
                     )
 
             fig_separate.savefig(str( exp_dir / ('%s.png' % roi) ))

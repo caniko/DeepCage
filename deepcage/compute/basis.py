@@ -167,7 +167,6 @@ def compute_basis_vectors(trian, pair, decrement=False):
     
     return stereo_cam_unit, orig_map
 
-
 def map_coords(pair_roi_df, orig_maps):
     pairs = tuple(pair_roi_df.keys())
     pair_order = cage_order_pairs(pairs)

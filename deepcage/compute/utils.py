@@ -5,7 +5,7 @@ import ruamel.yaml
 import pickle
 import os
 
-from deepcage.auxiliary.constants import CAMERAS
+from deepcage.auxiliary.constants import CAMERAS, cage_order_pairs
 
 
 def change_basis_func(coord_matrix, linear_map, origin):
@@ -66,3 +66,31 @@ def remove_close_zero(vector, tol=1e-16):
     ''' Returns the vector where values under the tolerance is set to 0 '''
     vector[np.abs(vector) < tol] = 0
     return vector
+
+def equalise_3daxes(ax, coord_set):
+    max_ = np.nanmax(coord_set)
+    min_ = np.nanmin(coord_set)
+
+    ax.set_xlim(min_, max_)
+    ax.set_ylim(min_, max_)
+    ax.set_zlim(min_, max_)
+
+    return ax
+
+def create_df_from_coords(pair_roi_df, orig_maps, remove_nans=False):
+    pairs = tuple(pair_roi_df.keys())
+    pair_order = cage_order_pairs(pairs)
+
+    columns = []
+    coords = {}
+    for pair in pair_order:
+        roi_df = pair_roi_df[pair]
+        for roi, df in roi_df.items():
+            x, y, z = df.T
+            coords[(roi, pair, 'x')] = pd.Series(x)
+            coords[(roi, pair, 'y')] = pd.Series(y)
+            coords[(roi, pair, 'z')] = pd.Series(z)
+            columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
+    df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
+
+    return df if remove_nans is False else df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]
