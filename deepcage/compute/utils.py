@@ -8,7 +8,7 @@ import os
 from deepcage.auxiliary.constants import CAMERAS, cage_order_pairs
 
 
-def change_basis_func(coord_matrix, linear_map, origin):
+def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_lenght=5):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
     Parameters
@@ -33,7 +33,7 @@ def change_basis_func(coord_matrix, linear_map, origin):
 
     # Change basis, and return result
     return np.apply_along_axis(
-        lambda v: np.dot(linear_map, v - origin),
+        lambda v: (linear_map @ (v - origin)),
         1, coord_matrix
     )
 
@@ -67,6 +67,7 @@ def remove_close_zero(vector, tol=1e-16):
     vector[np.abs(vector) < tol] = 0
     return vector
 
+
 def equalise_3daxes(ax, coord_set):
     max_ = np.nanmax(coord_set)
     min_ = np.nanmin(coord_set)
@@ -76,6 +77,7 @@ def equalise_3daxes(ax, coord_set):
     ax.set_zlim(min_, max_)
 
     return ax
+
 
 def create_df_from_coords(pair_roi_df, orig_maps, remove_nans=False):
     pairs = tuple(pair_roi_df.keys())

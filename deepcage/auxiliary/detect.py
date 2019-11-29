@@ -164,7 +164,6 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
 
         regions_of_interest = {}
         for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
-            print(os.path.dirname(hdf_path))
             pair_info = os.path.basename(os.path.dirname(hdf_path)).split('_')
             if len(pair_info) == 2:
                 cam1, cam2 = pair_info
@@ -206,3 +205,62 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
         else:
             msg = 'Inconsistencies in regions of interest were found in %d experiments' % missing
         raise ValueError(msg)
+
+
+def detect_2d_coords(config_path, suffix='filtered.h5', bonvideos=False):
+    '''
+    This function detects and returns the state of deeplabcut-triangulated coordinate h5 files (can be changed)
+
+    Parameters
+    ----------
+    config_path : string
+        String containing the full path of the project config.yaml file.
+    suffix : string
+        The suffix in the DeepLabCut 3D project triangualtion result storage files
+
+    Example
+    -------
+
+    '''
+
+    cfg = read_config(config_path)
+    dlc3d_cfgs = get_dlc3d_configs(config_path)
+
+    results_path = Path(cfg['results_path'])
+    triangulated = results_path / 'triangulated'
+    experiments = glob(str(triangulated / '*/'))
+    if experiments == []:
+        msg = 'Could not find any triangulated coordinates in %s' % triangulated
+        raise ValueError(msg)
+
+    coords = {}
+    for exp_path in experiments:
+        exp_dir_name = os.path.basename(exp_path)
+        if bonvideos is True:
+            animal, trial, date = exp_dir_name.split('_')
+            coords[(animal, trial, date)] = {}
+        else:
+            coords[exp_dir_name] = {}
+
+        regions_of_interest = {}
+        print(str(exp_path))
+        print(glob(os.path.join(exp_path, '**/*'+suffix)))
+        for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
+            pair_info = os.path.basename(os.path.dirname(hdf_path)).split('_')
+            if len(pair_info) == 2:
+                cam1, cam2 = pair_info
+            else:
+                idx_, cam1, cam2 = pair_info
+            pair = (cam1, cam2)
+
+            df = pd.read_hdf(os.path.realpath(hdf_path))
+            exp_regions_of_interest = df.columns.levels[0]
+            regions_of_interest[pair] = exp_regions_of_interest
+
+            coord = {roi: df[roi].values for roi in exp_regions_of_interest}
+            if bonvideos is True:
+                coords[(animal, trial, date)][pair] = coord
+            else:
+                coords[exp_dir_name][pair] = coord
+
+    return coords

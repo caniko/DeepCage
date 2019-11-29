@@ -1,4 +1,4 @@
-from numpy.linalg import solve
+from numpy.linalg import solve, norm
 import pandas as pd
 import numpy as np
 import vg
@@ -19,10 +19,135 @@ from deepcage.project.edit import read_config
 from .triangulate import triangulate_raw_2d_camera_coords, triangulate_basis_labels
 from .utils import unit_vector, change_basis_func
 
-
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
-def create_stereo_cam_origmap(config_path, decrement=False, save=True):
+
+def compute_basis_vectors(trian, pair, use_cross=False, normalize=True, decrement=False):
+    cam1, cam2 = pair
+    if decrement is True:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            if CAMERAS[cam1][0][1] == 'close':
+                origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
+                z_axis = trian[3] - origin
+                axis_1st = trian[0] - origin
+                axis_2nd = np.cross(axis_1st, z_axis)
+            else:
+                origin = trian[1] + (trian[0] - trian[1]) / 2
+                z_axis = trian[3] - origin
+                axis_1st = origin - trian[1]
+                axis_2nd = np.cross(z_axis, axis_1st)
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = origin - trian[2]
+            else:
+                alt_axis_2nd = trian[2] - origin
+
+        else:
+            # Corner
+            first_axis_linev = trian[1] - trian[0]
+            z_axis_linev = trian[5] - trian[4]
+            tangent_v = np.cross(z_axis_linev, first_axis_linev)
+
+            LHS = np.array((first_axis_linev, -z_axis_linev, tangent_v)).T
+            RHS = trian[4] - trian[0]
+            sol = solve(LHS, RHS)
+
+            origin = trian[0] + first_axis_linev * sol[0] + tangent_v * sol[2]/2
+            z_axis = trian[4] - origin
+
+            if CAMERAS[cam1][1][1] == 'positive':
+                axis_1st = trian[0] - origin
+                axis_2nd = np.cross(axis_1st, z_axis)
+            else:
+                axis_1st = origin - trian[0]
+                axis_2nd = np.cross(z_axis, axis_1st)
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = trian[2] - origin
+            else:
+                alt_axis_2nd = origin - trian[2]
+    else:
+        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
+            if CAMERAS[cam1][0][1] == 'close':
+                origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
+                z_axis = trian[3] - origin
+                axis_1st = trian[0] - origin
+                axis_2nd = np.cross(axis_1st, z_axis)
+            else:
+                origin = trian[1] + (trian[0] - trian[1]) / 2
+                z_axis = trian[3] - origin
+                axis_1st = origin - trian[1]
+                axis_2nd = np.cross(z_axis, axis_1st)
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = origin - trian[2]
+            else:
+                alt_axis_2nd = trian[2] - origin
+        else:
+            origin = trian[-1]
+            z_axis = trian[2] - origin
+            if CAMERAS[cam1][1][1] == 'positive':
+                axis_1st = trian[0] - origin
+                axis_2nd = np.cross(axis_1st, z_axis)
+            else:
+                axis_1st = origin - trian[0]
+                axis_2nd = np.cross(z_axis, axis_1st)
+
+            if CAMERAS[cam2][1][1] == 'positive':
+                alt_axis_2nd = trian[2] - origin
+            else:
+                alt_axis_2nd = origin - trian[2]
+
+    if normalize is True:
+        origin = unit_vector(origin)
+        axis_1st = unit_vector(axis_1st)
+        axis_2nd = unit_vector(axis_2nd)
+        alt_axis_2nd = unit_vector(alt_axis_2nd)
+        z_axis = unit_vector(z_axis)
+    else:
+        axis_2nd = unit_vector(axis_2nd) * np.average((norm(z_axis), norm(axis_1st)))
+
+    axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
+    if use_cross is True:
+        stereo_cam_unit = {
+            CAMERAS[cam1][0][0]: axis_1st,
+            axis_2nd_name: axis_2nd,
+            'z-axis': z_axis,
+            (axis_2nd_name, 'origin_subtract'): alt_axis_2nd
+        }
+    else:
+        stereo_cam_unit = {
+            CAMERAS[cam1][0][0]: axis_1st,
+            axis_2nd_name: alt_axis_2nd,
+            'z-axis': z_axis,
+            (axis_2nd_name, 'cross'): axis_2nd
+        }
+
+    orig_map = {
+        'axis_len': np.mean((norm(axis_1st), norm(alt_axis_2nd), norm(z_axis))),
+        'origin': origin,
+        'map': np.array((
+            stereo_cam_unit['x-axis'],
+            stereo_cam_unit['y-axis'],
+            z_axis
+        )).T
+    }
+
+    if normalize is False:
+        print('Vector magnitude/np.linalg.norm')
+        for axis in ('x-axis', 'y-axis', 'z-axis'):
+            print(f'{axis}: {np.linalg.norm(stereo_cam_unit[axis])}')
+
+    print(
+        f'\nCross product derived {axis_2nd_name}: {axis_2nd}\n' \
+        f'Origin-subtraction derived {axis_2nd_name}: {alt_axis_2nd}\n' \
+        f'Angle between the two vectors: {vg.angle(axis_2nd, alt_axis_2nd)}\n'
+    )
+
+    return stereo_cam_unit, orig_map
+
+
+def create_stereo_cam_origmap(config_path, decrement=False, save=True, **kwargs):
     '''
     Parameters
     ----------
@@ -33,16 +158,15 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     data_path = os.path.realpath(cfg['data_path'])
 
-    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
-    dataframe_path = os.path.join(data_path, 'basis_vectors.xlsx')
-    if os.path.exists(basis_result_path) and os.path.exists(dataframe_path):
-        msg = 'Please remove old analysis files before proceeding. File paths:\n%s\n%s\n' % (
-            basis_result_path, dataframe_path
-        )
-    elif os.path.exists(basis_result_path):
-        msg = 'Please remove old analysis file before proceeding. File paths:\n%s\n' % basis_result_path
-    elif os.path.exists(dataframe_path):
-        msg = 'Please remove old analysis file before proceeding. File paths:\n%s\n' % dataframe_path
+    if save is True:
+        basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+        dataframe_path = os.path.join(data_path, 'basis_vectors.xlsx')
+        if os.path.exists(basis_result_path) and os.path.exists(dataframe_path):
+            msg = f'Please remove old analysis files before proceeding. File paths:\n{basis_result_path}\n{dataframe_path}'
+        elif os.path.exists(basis_result_path):
+            msg = f'Please remove old analysis file before proceeding. File paths:\n{basis_result_path}'
+        elif os.path.exists(dataframe_path):
+            msg = f'Please remove old analysis file before proceeding. File paths:\n{dataframe_path}\n'
 
     pairs = tuple(dlc3d_cfgs.keys())
     stereo_cam_units, orig_maps = {}, {}
@@ -54,7 +178,7 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
         basis_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
         trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=decrement)
 
-        stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement)
+        stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement, **kwargs)
 
     if save is True:
         with open(basis_result_path, 'wb') as outfile:
@@ -69,123 +193,10 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True):
     return stereo_cam_units, orig_maps
 
 
-def compute_basis_vectors(trian, pair, decrement=False):
-    cam1, cam2 = pair
-    if decrement is True:
-        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            if CAMERAS[cam1][0][1] == 'close':
-                origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
-                z_axis = unit_vector(trian[3] - origin)
-                axis_1st = unit_vector(trian[0] - origin)
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-            else:
-                origin = trian[1] + (trian[0] - trian[1]) / 2
-                z_axis = unit_vector(trian[3] - origin)
-                axis_1st = unit_vector(origin - trian[1])
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-            if CAMERAS[cam2][1][1] == 'positive':
-                alt_axis_2nd = origin - trian[2]
-            else:
-                alt_axis_2nd = trian[2] - origin
-
-        else:
-            # Corner
-            first_axis_linev = unit_vector(trian[1] - trian[0])
-            z_axis_linev = unit_vector(trian[5] - trian[4])
-            tangent_v = unit_vector(np.cross(z_axis_linev, first_axis_linev))
-
-            LHS = np.array((first_axis_linev, -z_axis_linev, tangent_v)).T
-            RHS = trian[4] - trian[0]
-            sol = solve(LHS, RHS)
-
-            origin = trian[0] + first_axis_linev * sol[0] + tangent_v * sol[2]/2
-            z_axis = unit_vector(trian[4] - origin)
-
-            if CAMERAS[cam1][1][1] == 'positive':
-                axis_1st = unit_vector(trian[0] - origin)
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-            else:
-                axis_1st = unit_vector(origin - trian[0])
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-            if CAMERAS[cam2][1][1] == 'positive':
-                alt_axis_2nd = trian[2] - origin
-            else:
-                alt_axis_2nd = origin - trian[2]
-    else:
-        if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            if CAMERAS[cam1][0][1] == 'close':
-                origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
-                z_axis = unit_vector(trian[3] - origin)
-                axis_1st = unit_vector(trian[0] - origin)
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-            else:
-                origin = trian[1] + (trian[0] - trian[1]) / 2
-                z_axis = unit_vector(trian[3] - origin)
-                axis_1st = unit_vector(origin - trian[1])
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-            if CAMERAS[cam2][1][1] == 'positive':
-                alt_axis_2nd = origin - trian[2]
-            else:
-                alt_axis_2nd = trian[2] - origin
-        else:
-            origin = trian[-1]
-            z_axis = unit_vector(trian[2] - origin)
-            if CAMERAS[cam1][1][1] == 'positive':
-                axis_1st = unit_vector(trian[0] - origin)
-                axis_2nd = unit_vector(np.cross(axis_1st, z_axis))
-            else:
-                axis_1st = unit_vector(origin - trian[0])
-                axis_2nd = unit_vector(np.cross(z_axis, axis_1st))
-
-            if CAMERAS[cam2][1][1] == 'positive':
-                alt_axis_2nd = trian[2] - origin
-            else:
-                alt_axis_2nd = origin - trian[2]
-
-    axis_2nd_name = 'y-axis' if CAMERAS[cam1][0][0] == 'x-axis' else 'x-axis'
-    stereo_cam_unit = {
-        CAMERAS[cam1][0][0]: axis_1st,
-        (axis_2nd_name, 'cross'): axis_2nd,
-        (axis_2nd_name, 'alt'): alt_axis_2nd,
-        'z-axis': z_axis
-    }
-
-    orig_map = {
-        'origin': origin,
-        'map': np.array((axis_1st, axis_2nd, z_axis)).T
-    }
-
-    print('\nCross product derived {axis_2nd_name}: {cross}\n' \
-    'Origin-subtraction derived {axis_2nd_name}: {orig}\n' \
-    'Angle between the two vectors: {angle}\n'.format(
-        axis_2nd_name=axis_2nd_name, cross=axis_2nd,
-        orig=alt_axis_2nd, angle=vg.angle(axis_2nd, alt_axis_2nd)
-    ))
-    
-    return stereo_cam_unit, orig_map
-
-def map_coords(pair_roi_df, orig_maps):
-    pairs = tuple(pair_roi_df.keys())
-    pair_order = cage_order_pairs(pairs)
-
-    columns = []
-    coords = {}
-    for pair in pair_order:
-        roi_df = pair_roi_df[pair]
-        origin, linear_map = orig_maps[pair]['origin'], orig_maps[pair]['map']
-        for roi, df in roi_df.items():
-            x, y, z = change_basis_func(df, linear_map, origin).T
-            coords[(roi, pair, 'x')] = pd.Series(x)
-            coords[(roi, pair, 'y')] = pd.Series(y)
-            coords[(roi, pair, 'z')] = pd.Series(z)
-            columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
-    df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
-    return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]
-
-def map_experiment(config_path, suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False):
+def map_experiment(
+        config_path, suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False,
+        use_saved_origmap=True, normalize=True, **kwargs
+    ):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -202,7 +213,6 @@ def map_experiment(config_path, suffix='_DLC_3D.h5', bonvideos=False, save=True,
     -------
 
     '''
-
     coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True, bonvideos=bonvideos)
     if coords is False:
         print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
@@ -214,17 +224,18 @@ def map_experiment(config_path, suffix='_DLC_3D.h5', bonvideos=False, save=True,
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
 
-    if save is True and (len(glob(os.path.join(result_path, '*.xlsx'))) or len(glob(os.path.join(result_path, '*.h5')))):
-        msg = 'The result folder needs to be empty. Path: {}'.format(result_path)
-        raise ValueError(msg)
-
-    basis_result_path = os.path.join(data_path, 'cb_result.pickle')
-    try:
-        with open(basis_result_path, 'rb') as infile:
-            stereo_cam_units, orig_maps = pickle.load(infile)
-    except FileNotFoundError:
-        msg = 'Could not detect results from deepcage.compute.generate_linear_map() in:\n%s' % basis_result_path
-        raise FileNotFoundError(msg)
+    if use_saved_origmap is False:
+        basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+        try:
+            with open(basis_result_path, 'rb') as infile:
+                stereo_cam_units, orig_maps = pickle.load(infile)
+        except FileNotFoundError:
+            msg = f'Could not detect results from deepcage.compute.generate_linear_map() in:\n{basis_result_path}'
+            raise FileNotFoundError(msg)
+    else:
+        stereo_cam_units, orig_maps = create_stereo_cam_origmap(
+            config_path, decrement=False, save=False, normalize=normalize
+        )
 
     dfs = {}
     cpu_cores = cpu_count(logical=False)
@@ -267,3 +278,26 @@ def map_experiment(config_path, suffix='_DLC_3D.h5', bonvideos=False, save=True,
 
     print('DONE: Basis changed')
     return dfs
+
+
+def map_coords(pair_roi_df, orig_maps):
+    '''
+    Helper function for map_experiment()
+    '''
+
+    pairs = tuple(pair_roi_df.keys())
+    pair_order = cage_order_pairs(pairs)
+
+    columns = []
+    coords = {}
+    for pair in pair_order:
+        roi_df = pair_roi_df[pair]
+        axis_lenght, origin, linear_map = orig_maps[pair].values()
+        for roi, df in roi_df.items():
+            x, y, z = change_basis_func(df, linear_map, origin, axis_lenght).T
+            coords[(roi, pair, 'x')] = pd.Series(x)
+            coords[(roi, pair, 'y')] = pd.Series(y)
+            coords[(roi, pair, 'z')] = pd.Series(z)
+            columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
+    df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
+    return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]
