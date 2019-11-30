@@ -8,7 +8,7 @@ import os
 from deepcage.auxiliary.constants import CAMERAS, cage_order_pairs
 
 
-def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_lenght=5):
+def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_lenght=4.7, percentiles=None):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
     Parameters
@@ -31,11 +31,12 @@ def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_
     assert coord_matrix.shape[1] == 3
     assert linear_map.shape == (3, 3)
 
-    # Change basis, and return result
-    return np.apply_along_axis(
-        lambda v: (linear_map @ (v - origin)),
-        1, coord_matrix
-    )
+    assert isinstance(calibrator_lenght, (int, float))
+    assert isinstance(axis_lenght, (int, float))
+
+    # subtract "new origin" -> change basis -> divide by mean axis_length
+    calibrator_lenght * (((coord_matrix - origin) @ linear_map) / axis_lenght)
+    return 
 
 
 def duovec_midpoint(v1, v2):

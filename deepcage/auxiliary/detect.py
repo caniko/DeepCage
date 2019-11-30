@@ -132,6 +132,7 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
 
     '''
 
+    print(suffix)
     suffix_split = suffix.split('.')
     if len(suffix_split) > 1:
         if suffix_split[-1] != 'h5':

@@ -22,7 +22,7 @@ from .utils import unit_vector, change_basis_func
 # TODO: Create a jupyter notebook with an implementation of this workflow
 
 
-def compute_basis_vectors(trian, pair, use_cross=False, normalize=True, decrement=False):
+def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement=False):
     cam1, cam2 = pair
     if decrement is True:
         if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
@@ -97,9 +97,11 @@ def compute_basis_vectors(trian, pair, use_cross=False, normalize=True, decremen
                 alt_axis_2nd = trian[2] - origin
             else:
                 alt_axis_2nd = origin - trian[2]
+    
+    # Calculate axis_len before potential normalization
+    axis_len = np.mean((norm(axis_1st), norm(alt_axis_2nd), norm(z_axis)))
 
     if normalize is True:
-        origin = unit_vector(origin)
         axis_1st = unit_vector(axis_1st)
         axis_2nd = unit_vector(axis_2nd)
         alt_axis_2nd = unit_vector(alt_axis_2nd)
@@ -124,7 +126,7 @@ def compute_basis_vectors(trian, pair, use_cross=False, normalize=True, decremen
         }
 
     orig_map = {
-        'axis_len': np.mean((norm(axis_1st), norm(alt_axis_2nd), norm(z_axis))),
+        'axis_len': axis_len,
         'origin': origin,
         'map': np.array((
             stereo_cam_unit['x-axis'],
@@ -194,8 +196,8 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True, **kwargs)
 
 
 def map_experiment(
-        config_path, suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False,
-        use_saved_origmap=True, normalize=True, **kwargs
+        config_path, percentiles=(5, 95), use_saved_origmap=True, normalize=True,
+        suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False, **kwargs
     ):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
@@ -213,7 +215,9 @@ def map_experiment(
     -------
 
     '''
-    coords = detect_triangulation_result(config_path, suffix=suffix, change_basis=True, bonvideos=bonvideos)
+    coords = detect_triangulation_result(
+        config_path, suffix=suffix, change_basis=True, bonvideos=bonvideos
+    )
     if coords is False:
         print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
         return False
@@ -224,13 +228,14 @@ def map_experiment(
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
 
-    if use_saved_origmap is False:
+    if use_saved_origmap is True:
         basis_result_path = os.path.join(data_path, 'cb_result.pickle')
         try:
             with open(basis_result_path, 'rb') as infile:
                 stereo_cam_units, orig_maps = pickle.load(infile)
         except FileNotFoundError:
-            msg = f'Could not detect results from deepcage.compute.generate_linear_map() in:\n{basis_result_path}'
+            msg = 'Could not detect results from deepcage.compute.generate_linear_map() in:\n' \
+                  + basis_result_path
             raise FileNotFoundError(msg)
     else:
         stereo_cam_units, orig_maps = create_stereo_cam_origmap(
@@ -242,7 +247,7 @@ def map_experiment(
     if paralell is False or cpu_cores < 2:
         for info, pair_roi_df in coords.items():
             # info = (animal, trial, date)
-            dfs[info] = map_coords(pair_roi_df, orig_maps)
+            dfs[info] = map_coords(pair_roi_df, orig_maps, percentiles)
 
     else:
         submissions = {}
@@ -280,7 +285,7 @@ def map_experiment(
     return dfs
 
 
-def map_coords(pair_roi_df, orig_maps):
+def map_coords(pair_roi_df, orig_maps, percentiles=None):
     '''
     Helper function for map_experiment()
     '''
@@ -289,15 +294,20 @@ def map_coords(pair_roi_df, orig_maps):
     pair_order = cage_order_pairs(pairs)
 
     columns = []
-    coords = {}
+    pre_df = {}
     for pair in pair_order:
         roi_df = pair_roi_df[pair]
-        axis_lenght, origin, linear_map = orig_maps[pair].values()
-        for roi, df in roi_df.items():
-            x, y, z = change_basis_func(df, linear_map, origin, axis_lenght).T
-            coords[(roi, pair, 'x')] = pd.Series(x)
-            coords[(roi, pair, 'y')] = pd.Series(y)
-            coords[(roi, pair, 'z')] = pd.Series(z)
+        for roi, coords in roi_df.items():
+            x, y, z = change_basis_func(
+                coords,
+                orig_maps[pair]['map'],
+                orig_maps[pair]['origin'],
+                orig_maps[pair]['axis_len']
+            ).T
+
+            pre_df[(roi, pair, 'x')] = pd.Series(x)
+            pre_df[(roi, pair, 'y')] = pd.Series(y)
+            pre_df[(roi, pair, 'z')] = pd.Series(z)
             columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
-    df = pd.DataFrame.from_dict(coords, orient='columns').sort_index(axis=1, level=0)
+    df = pd.DataFrame.from_dict(pre_df, orient='columns').sort_index(axis=1, level=0)
     return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]

@@ -91,6 +91,10 @@ def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
         ax['trian'].set_title('Triangualted').set_y(1.005)
         ax['trian'].legend()
 
+        ax['trian'].set_xlabel('X', fontsize=10)
+        ax['trian'].set_ylabel('Y', fontsize=10)
+        ax['trian'].set_zlabel('Z', fontsize=10)
+
         _, orig_map = compute_basis_vectors(trian, pair, normalize=normalize, decrement=decrement)
 
         r = []
@@ -102,15 +106,23 @@ def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
         ax['basis'].plot(*r_2, label='r2/y')
         ax['basis'].plot(*r_3, label='r3/z')
 
-        # angles
+        # Angles
         i, ii, iii = orig_map['map'].T
         i_ii = vg.angle(i, ii)
         i_iii = vg.angle(i, iii)
         ii_iii = vg.angle(ii, iii)
 
         title_text2 = 'r1-r2: %3f r1-r3: %3f\nr2-r3: %3f' % (i_ii, i_iii, ii_iii)
+
         ax['basis'].set_title(title_text2).set_y(1.005)
         ax['basis'].legend()
+
+        ax['basis'].set_xticklabels([])
+        ax['basis'].set_yticklabels([])
+        ax['basis'].set_zticklabels([])
+        ax['basis'].set_xlabel('X', fontsize=10)
+        ax['basis'].set_ylabel('Y', fontsize=10)
+        ax['basis'].set_zlabel('Z', fontsize=10)
 
         if save is True:
             fig.savefig( os.path.join(figure_dir, '%d_%s_%s.png' % (PAIR_IDXS[pair], *pair)) )
@@ -202,7 +214,6 @@ def visualize_basis_vectors(config_path, normalize=True, decrement=False, save=T
             axes = list(stereo_cam_units[pair].values())[:3]
             initials = pair[0][0] + pair[1][0]
             for i, axis in enumerate(axes):
-                print(np.linalg.norm(axis))
                 ax_duo[(pair1, pair2)].plot(
                     [0, axis[0]], [0, axis[1]], [0, axis[2]],'-',
                     c=next(color), label=f'{initials}: r{i}'
@@ -281,7 +292,7 @@ def plot_2d_trajectories(config_path, cm_is_real_idx=True, save=True):
     pass
 
 
-def plot_3d_trajectories(config_path, cm_is_real_idx=True, remap=True, normalize=True, cols=2, save=True):
+def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, normalize=True, use_saved_origmap=True, save=True):
     '''
     Parameters
     ----------
@@ -303,22 +314,21 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, remap=True, normalize
         os.makedirs(tracjetory_dir)
 
     if remap is True:
-        dfs = map_experiment(
-            config_path, save=False,
-            new_orig_map='no-norm' if normalize is True else True
-        )
+        dfs = map_experiment(config_path, save=False, use_saved_origmap=use_saved_origmap, normalize=normalize)
     else:
-        basis_result_path = os.path.join(data_path, 'cb_result.pickle')
-        try:
-            with open(basis_result_path, 'rb') as infile:
-                stereo_cam_units, orig_maps = pickle.load(infile)
-        except FileNotFoundError:
-            msg = f'Could not detect results from deepcage.compute.generate_linear_map() in:\n{basis_result_path}' 
-            raise FileNotFoundError(msg)
-        dfs = create_df_from_coords(detect_triangulation_result(config_path, orig_maps, change_basis=False))
-        if dfs is False:
-            print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
-            return False
+        pass
+        # basis_result_path = os.path.join(data_path, 'cb_result.pickle')
+        # try:
+        #     with open(basis_result_path, 'rb') as infile:
+        #         stereo_cam_units, orig_maps = pickle.load(infile)
+        # except FileNotFoundError:
+        #     msg = f'Could not detect results from deepcage.compute.generate_linear_map() in:\n{basis_result_path}' 
+        #     raise FileNotFoundError(msg)
+
+        # dfs = create_df_from_coords(detect_triangulation_result(config_path, change_basis=False))
+        # if dfs is False:
+        #     print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
+        #     return False
 
     # Experimen DFs
     for exp_info, df in dfs.items():
@@ -332,9 +342,10 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, remap=True, normalize
         roi_groups = df.groupby(level=0, axis=1)
         rows_all = ceil(len(roi_groups) / cols)
 
+        
         fig_all = plt.figure(figsize=(16, 8))
         fig_all.suptitle(exp_info)
-        
+
         ax_all, ax_sep = {}, {}
         for roi_idx, (roi, df_roi) in enumerate(roi_groups):
             pair_groups = df_roi[roi].groupby(level=0, axis=1)
