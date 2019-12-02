@@ -1,6 +1,6 @@
 # from deepcage.auxiliary.detect import detect_triangulation_result
 # from deepcage.project import (
-#     initialise_projects,
+#     create_dlc_dc_projects,
 #     calibrate_dlc_cameras
 # )
 from deepcage.compute import (
@@ -26,7 +26,7 @@ experimenter = 'Can'
 root = os.path.realpath('H:/Can_cage/DeepCage_DLC_files')
 config_path = os.path.join(root, 'DeepCageKeyTest-Can-2019-11-15/config.yaml')
 normalize = True
-# config_path = initialise_projects(project_name, experimenter, root, dlc_config, calib_root, vid_format='avi')
+# config_path = create_dlc_dc_projects(project_name, experimenter, root, dlc_config, calib_root, vid_format='avi')
 
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None)
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=True, alpha=0.9, skip=None)

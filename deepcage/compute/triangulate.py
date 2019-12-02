@@ -27,11 +27,11 @@ def triangulate_raw_2d_camera_coords(
     Parameters
     ----------
     dlc3d_cfg : string
-        Full path of the config.yaml file as a string.
+        Absolute path of the config.yaml file as a string.
     cam1_image : string; default None
-        Full path of the image of camera 1 as a string.
+        Absolute path of the image of camera 1 as a string.
     cam2_image : string; default None
-        Full path of the image of camera 2 as a string.
+        Absolute path of the image of camera 2 as a string.
     cam1_coords : numpy.array-like; default None
         List of vectors that are coordinates in the camera 1 image
     cam2_coords : numpy.array-like; default None

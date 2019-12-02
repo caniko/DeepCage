@@ -18,7 +18,7 @@ def detect_bonsai(root):
     Parameters
     ----------
     root : string
-        String containing the full path of the directory storing BonRecordings related to the project
+        Absolute path of the directory storing BonRecordings related to the project
     '''
     bon_projects = {}
     subs = {}
@@ -86,7 +86,7 @@ def detect_cage_calibration_images(config_path, img_format='png'):
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     '''
     from .constants import CAMERAS
     
@@ -121,7 +121,7 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     suffix : string
         The suffix in the DeepLabCut 3D project triangualtion result storage files
     change_basis : boolean
@@ -215,7 +215,7 @@ def detect_2d_coords(config_path, suffix='filtered.h5', bonvideos=False):
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     suffix : string
         The suffix in the DeepLabCut 3D project triangualtion result storage files
 

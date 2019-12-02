@@ -3,6 +3,21 @@ import os
 
 
 def png_to_jpg(save_dir, img_paths=None, img_root=None, codec='cv'):
+    '''
+    Converts .PNG files to .JPEG files, and moves them to the desired path
+
+    Parameters
+    ----------
+    save_dir : string-like
+        Absolute path of the directory where the new images are saved
+    img_paths : list-like
+        List of absolute paths of images that will be converted
+    img_root : string-like
+        Absolute path of the root directory shared by the images to be converted
+    codec : string; default 'cv'
+        The package that will be used for converting the images
+    '''
+
     assert os.path.exists(save_dir), 'Does not exist:\n%s' % save_dir
 
     if img_paths is None:

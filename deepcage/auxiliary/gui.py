@@ -25,9 +25,9 @@ def get_coord(cam_image, n=-1, title=None):
     Parameters
     ----------
     cam_image : string; default None
-        Full path of the image from camera as a string.
+        Absolute path of the image from camera as a string.
     cam2_image : string; default None
-        Full path of the image of camera 2 as a string.
+        Absolute path of the image of camera 2 as a string.
     '''
 
     plt.imshow(mpimg.imread(cam_image))
@@ -44,7 +44,7 @@ def basis_label(config_path, image_paths=None, decrement=False):
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     image_paths : dict; optional
         Dictionary where the key is name of the camera, and the value is the full path to the image
         of the referance points taken with the camera

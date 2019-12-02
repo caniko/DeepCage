@@ -30,7 +30,7 @@ def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     '''
     import matplotlib.image as image
 
@@ -81,7 +81,7 @@ def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
         for (label, coord), color in zip(trian_dict.items(), cmap):
             ax['trian'].scatter(*(coord - trian_dict['origin']), c=color, label=label)
 
-        if CAMERAS[cam1][0][1] == 'close':
+        if CAMERAS[cam1][0][1] == 'left':
             c_origin = trian[0] + (trian[1] - trian[0]) / 2
         else:
             c_origin = trian[1] + (trian[0] - trian[1]) / 2
@@ -163,7 +163,7 @@ def visualize_triangulation(config_path, decrement=False, save=True):
         for label, coord in trian_dict.items():
             pair_ax[pair].scatter(*coord, label=label)
 
-        if CAMERAS[cam1][0][1] == 'close':
+        if CAMERAS[cam1][0][1] == 'left':
             c_origin = trian_coord[0] + (trian_coord[1] - trian_coord[0]) / 2
         else:
             c_origin = trian_coord[1] + (trian_coord[0] - trian_coord[1]) / 2
@@ -186,7 +186,7 @@ def visualize_basis_vectors(config_path, normalize=True, decrement=False, save=T
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     '''
     stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, normalize=normalize, decrement=decrement, save=False)
 
@@ -232,7 +232,7 @@ def visualize_basis_vectors_single(config_path, normalize=True, decrement=False,
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     '''
     stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, normalize=normalize, decrement=False, save=False)
 
@@ -297,7 +297,7 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, n
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     cm_is_real_idx : bool
         The trajectories are color-mapped with basis on their position in the array, rainbow (red->green->blue)
     '''
@@ -342,7 +342,7 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, n
         roi_groups = df.groupby(level=0, axis=1)
         rows_all = ceil(len(roi_groups) / cols)
 
-        
+
         fig_all = plt.figure(figsize=(16, 8))
         fig_all.suptitle(exp_info)
 

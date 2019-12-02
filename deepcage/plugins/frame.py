@@ -14,7 +14,6 @@ import os
 
 from deepcage.auxiliary.constants import CAMERAS, get_pairs
 from deepcage.auxiliary.detect import detect_bonsai
-from deepcage.project.utils import png_to_jpg
 
 
 def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(100, 'ms')):
@@ -24,7 +23,7 @@ def stereocamera_frames(frames_dir, pair_tol=np.timedelta64(100, 'ms')):
     Parameters
     ----------
     frames_dir : string
-        String containing the full path of the directory storing BonRecordings related to the project
+        Absolute path of the directory storing BonRecordings related to the project
     pair_tol : np.timedelta64; default np.timedelta64(ms=40)
         Maximum difference between closest frames given in np.timedelta64
     '''
@@ -121,7 +120,7 @@ def create_videos(frames_dir, width=1920, height=1080, start_pair=None, notebook
     Parameters
     ----------
     frames_dir : string
-        String containing the full path of the directory storing BonRecordings related to the project
+        Absolute path of the directory storing BonRecordings related to the project
     '''
     # TODO: Finish
     import cv2

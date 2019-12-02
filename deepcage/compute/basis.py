@@ -26,7 +26,7 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
     cam1, cam2 = pair
     if decrement is True:
         if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            if CAMERAS[cam1][0][1] == 'close':
+            if CAMERAS[cam1][0][1] == 'left':
                 origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
                 z_axis = trian[3] - origin
                 axis_1st = trian[0] - origin
@@ -68,7 +68,7 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
                 alt_axis_2nd = origin - trian[2]
     else:
         if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
-            if CAMERAS[cam1][0][1] == 'close':
+            if CAMERAS[cam1][0][1] == 'left':
                 origin = trian[0] + (trian[1] - trian[0]) / 2    # pos + (trian[1] - pos) / 2
                 z_axis = trian[3] - origin
                 axis_1st = trian[0] - origin
@@ -154,7 +154,7 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True, **kwargs)
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     '''
     cfg = read_config(config_path)
     dlc3d_cfgs = get_dlc3d_configs(config_path)
@@ -205,7 +205,7 @@ def map_experiment(
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     linear_maps : {string: numpy.array}
         (3, 3) array that stores the linear map for changing basis
     suffix : string

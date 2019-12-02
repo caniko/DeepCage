@@ -14,7 +14,7 @@ from deepcage.project.edit import read_config
 
 
 
-def initialise_projects(
+def create_dlc_dc_projects(
         project_name, experimenter,
         root, calib_root, video_root, dlc_config=None,
         video_dir_hierarchy=('trial', 'pair'), copy_videos=True, image_format='png'
@@ -32,11 +32,11 @@ def initialise_projects(
     experimenter : str
         String containing the project_name of the experimenter/scorer.
     root : string
-        String containing the full path of to the directory where the new project files should be located
+        Absolute path of to the directory where the new project files should be located
     calib_root : string
-        String containing the full path of to the root directory storing the calibration files for each dlc 3D project
+        Absolute path of to the root directory storing the calibration files for each dlc 3D project
     dlc_config : string or None; default None
-        String containing the full path of to the dlc config.yaml file that will be used for the dlc 3D projects
+        Absolute path of to the dlc config.yaml file that will be used for the dlc 3D projects
     '''
     from deepcage.auxiliary.detect import detect_dlc_calibration_images, detect_videos_in_hierarchy
     from deeplabcut.create_project import create_new_project_3d, create_new_project
@@ -56,12 +56,14 @@ def initialise_projects(
     root_path = Path(root)
     video_dir = root_path / 'videos'
 
+    # Get videos
     hierarchy, videos = detect_videos_in_hierarchy(
         video_root,
         video_dir_hierarchy=('trial', 'pair'),
         copy_video_dir=video_dir if copy_videos is True else None
     )
 
+    # Create a project specific DeepLabCut markerless pose estimation project, if not defined
     if dlc_config is None:
         dlc_config = create_new_project(
             project_name, experimenter, videos,
@@ -75,10 +77,12 @@ def initialise_projects(
         for pair, calib_paths in detect_dlc_calibration_images(calib_root).items():
             cam1, cam2 = pair
 
+            # Create DeepLabCut 3D project for the loop-defined stereo camera
             name = '%d_%s_%s' % (PAIR_IDXS[pair], cam1, cam2)
             dlc3d_project_configs[pair] = create_new_project_3d(name, experimenter, num_cameras=2, working_directory=root)
             project_path = Path(os.path.dirname(dlc3d_project_configs[pair]))
 
+            # Move calibration images to their respective DeepLabCut 3D project
             calibration_images_path = project_path / 'calibration_images'
             if not os.path.exists(calibration_images_path):
                 os.makedirs(calibration_images_path)
@@ -89,6 +93,7 @@ def initialise_projects(
                 # TODO: Implement solution
                 pass
 
+            # Re-define default config.yaml parameters to DeepCage standards
             cfg = read_config(dlc3d_project_configs[pair])
             cfg['config_file_camera-1'] = dlc_config
             cfg['config_file_camera-2'] = dlc_config

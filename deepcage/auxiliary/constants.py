@@ -3,10 +3,10 @@
 PAIRS = 8
 
 CAMERAS = {
-    'NorthWest': (('x-axis', 'close'), ('y-axis', 'positive'), 1),  'NorthEast': (('x-axis', 'close'), ('y-axis', 'positive'), 1),
-    'EastNorth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),   'EastSouth': (('y-axis', 'far'),  ('x-axis', 'positive'), 2),
-    'SouthEast': (('x-axis', 'far'), ('y-axis', 'negative'), 3),    'SouthWest': (('x-axis', 'far'), ('y-axis', 'negative'), 3),
-    'WestSouth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'close'),  ('x-axis', 'negative'), 4)
+    'NorthWest': (('x-axis', 'left'),  ('y-axis', 'positive'), 1), 'NorthEast': (('x-axis', 'left'),  ('y-axis', 'positive'), 1),
+    'EastNorth': (('y-axis', 'right'), ('x-axis', 'positive'), 2), 'EastSouth': (('y-axis', 'right'), ('x-axis', 'positive'), 2),
+    'SouthEast': (('x-axis', 'right'), ('y-axis', 'negative'), 3), 'SouthWest': (('x-axis', 'right'), ('y-axis', 'negative'), 3),
+    'WestSouth': (('y-axis', 'left'),  ('x-axis', 'negative'), 4), 'WestNorth': (('y-axis', 'left'),  ('x-axis', 'negative'), 4)
 }
 
 """ Structure of information in CAMERAS var

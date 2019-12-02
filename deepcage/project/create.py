@@ -35,13 +35,13 @@ def create_project_old_cage(
         String containing the name of the new project.
         
     old_cage_config : str
-        String containing the full path to the old(!) DeepCage project config.yaml file.
+        Absolute path to the old(!) DeepCage project config.yaml file.
 
     new_root : str-like
         Object containing the full path to the project, must have __str__() or method accepted by pathlib.Path()
 
     dlc_project_config : str; default '' (empty-string)
-        String containing the full path to the DeepLabCut project config.yaml file.
+        Absolute path to the DeepLabCut project config.yaml file.
 
     dlc_working_dir : str; default, None -> project_path
         The directory where the optional DeepLabCut 2D project will be created.
@@ -156,7 +156,7 @@ def create_dc_project(
         String containing the project_name of the experimenter/scorer.
 
     dlc_project_config : str
-        String containing the full path to the DeepLabCut project config.yaml file.
+        Absolute path to the DeepLabCut project config.yaml file.
 
     dlc3d_project_configs : dict
         Dict with camera pair as keys, and values as strings containing the full path to the respective DeepLabCut 3D project config.yaml file.

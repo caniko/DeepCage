@@ -11,6 +11,7 @@ from deepcage.auxiliary.constants import CAMERAS, cage_order_pairs
 def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_lenght=4.7, percentiles=None):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
+
     Parameters
     ----------
     coord_matrix : numpy.array
@@ -24,6 +25,7 @@ def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_
     -------
     >>> deeplabcut.change_of_basis(coord_matrix, linear_map, origin=(1, 4.2, 3))
     '''
+
     origin = np.asarray(origin)
 
     assert origin.shape == (3,)

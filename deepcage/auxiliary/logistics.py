@@ -14,9 +14,9 @@ def dlc3d_video_migrate(config_path, root, many=False, test=False):
     Parameters
     ----------
     config_path : string
-        String containing the full path of the project config.yaml file.
+        Absolute path of the project config.yaml file.
     root : string
-        Full path for the root directory of function operation
+        Absolute path for the root directory of function operation
     many : bool; default False
         Bool indicating if root stores many projects. False means the root is a project root
     test : bool; default False
