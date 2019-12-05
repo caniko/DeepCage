@@ -12,16 +12,16 @@ from deepcage.auxiliary.gui import get_coord
 
 def triangulate_raw_2d_camera_coords(
     dlc3d_cfg, cam1_coords=None, cam2_coords=None,
-    cam1_image=None, cam2_image=None, keys=None
+    cam1_image=None, cam2_image=None, keys=None, undistort=True
     ):
     """
     Augmented deeplabcut.triangulate() for DeepCage workflow
-    
+
     This function triangulates user-defined coordinates from the two camera views using the camera matrices (derived from calibration) to calculate 3D predictions.
     Optionally, the user can define the coordiantes from images.
-    
+
     Used for changing basis operations.
-    
+
     Note: cam1 is the first camera on the 'camera_names' list located in the project 'config.yaml' file; cam2 is the second camera on the same list
 
     Parameters
@@ -47,7 +47,7 @@ def triangulate_raw_2d_camera_coords(
     Linux/MacOS
     To analyze a set of images in a directory:
     >>> deeplabcut.triangulate_raw_2d_camera_coords(dlc3d_cfg, cam1_image='/image_directory/cam1.png', cam2_image='/image_directory/cam2.png')
-    
+
     Windows
     To analyze a set of images in a directory:
     >>> deeplabcut.triangulate_raw_2d_camera_coords(dlc3d_cfg, cam1_image='<drive_letter>:\\<image_directory>\\cam1.png', cam2_image='\\image_directory\\cam2.png')
@@ -57,22 +57,22 @@ def triangulate_raw_2d_camera_coords(
     #     (cam1_coords is not None and cam2_coords is not None) and (cam1_image is not None and cam2_image is not None)):
     #     msg = 'Must include a set of camera images or 2d-coordinates'
     #     raise ValueError(msg)
-    
+
     if cam1_coords is not None and cam2_coords is not None:
         coords_defined = True
-        
+
     if cam1_image is not None and cam2_image is not None:
         if coords_defined is True:
             msg = 'Must include a set of camera images or 2d-coordinates'
             raise ValueError(msg)
         cam1_coords = get_coord(cam1_image, n=-1)
         cam2_coords = get_coord(cam2_image, n=-1)
-        
+
         if len(cam1_coords) != len(cam2_coords):
             msg = 'Each image must have the same number of selections'
             raise ValueError(msg)
 
-    
+
 
     cam1_coords = np.array(cam1_coords, dtype=np.float64)
     cam2_coords = np.array(cam2_coords, dtype=np.float64)
@@ -113,12 +113,16 @@ def triangulate_raw_2d_camera_coords(
     R2 = stereo_file[camera_pair_key]['R2']
     P2 = stereo_file[camera_pair_key]['P2']
 
-    cam1_undistorted_coords = cv2.undistortPoints(
-        src=cam1_coords, cameraMatrix=mtx_l, distCoeffs=dist_l, P=P1, R=R1
-    )
-    cam2_undistorted_coords = cv2.undistortPoints(
-        src=cam2_coords, cameraMatrix=mtx_r, distCoeffs=dist_r, P=P2, R=R2
-    )
+    if undistort:
+        cam1_undistorted_coords = cv2.undistortPoints(
+            src=cam1_coords, cameraMatrix=mtx_l, distCoeffs=dist_l, P=P1, R=R1
+        )
+        cam2_undistorted_coords = cv2.undistortPoints(
+            src=cam2_coords, cameraMatrix=mtx_r, distCoeffs=dist_r, P=P2, R=R2
+        )
+    else:
+        cam1_undistorted_coords = cam1_coords
+        cam2_undistorted_coords = cam2_coords
     homogenous_coords = auxiliaryfunctions_3d.triangulatePoints(P1, P2, cam1_undistorted_coords, cam2_undistorted_coords)
     triangulated_coords = np.array((homogenous_coords[0], homogenous_coords[1], homogenous_coords[2])).T
 
@@ -128,7 +132,7 @@ def triangulate_raw_2d_camera_coords(
         return triangulated_coords
 
 
-def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False, keys=False):
+def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False, keys=False, undistort=True):
     '''
     Using the labels from basis_label create 2d representations of the basis vectors for triangulation
 
@@ -189,5 +193,5 @@ def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False, key
 
     return triangulate_raw_2d_camera_coords(
         dlc3d_cfg, cam1_coords=cam1_coords, cam2_coords=cam2_coords,
-        keys=None if keys is False else trian_keys
+        keys=None if keys is False else trian_keys, undistort=undistort
     )

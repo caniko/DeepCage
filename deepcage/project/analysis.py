@@ -27,9 +27,9 @@ def triangulate_dlc3d_videos(config_path, gputouse=0, vformat='avi'):
     from .get import get_dlc3d_configs
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
-    
 
-def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, vformat='avi'):
+
+def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, vformat='avi', undistort=True):
     '''
     Parameters
     ----------
@@ -77,7 +77,7 @@ def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, 
             assert int(cam_pair_id1) == 0 and int(cam_pair_id2) == 1
 
             if bonvideos is True:
-                trial_dir = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date)) 
+                trial_dir = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date))
             else:
                 trial_dir = results_path / 'triangulated' / exp_name
 
@@ -93,7 +93,8 @@ def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, 
             dlc3d_cfg,
             videos[pair],
             gputouse=gputouse,
-            destfolders=destfolders[pair]
+            destfolders=destfolders[pair],
+            undistort=undistort
         )
 
     return True
@@ -105,7 +106,7 @@ def calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     cpu_cores = cpu_count(logical=False)
-    
+
     if paralell is False or cpu_cores < 2:
         for pair, dlc_config in dlc3d_cfgs.items():
             if skip is None or PAIR_IDXS[pair] not in skip:
