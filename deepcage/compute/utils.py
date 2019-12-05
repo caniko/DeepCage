@@ -37,8 +37,10 @@ def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_
     assert isinstance(axis_lenght, (int, float))
 
     # subtract "new origin" -> change basis -> divide by mean axis_length
-    calibrator_lenght * (((coord_matrix - origin) @ linear_map) / axis_lenght)
-    return 
+    # calibrator_lenght * (((coord_matrix - origin) @ linear_map) / axis_lenght)
+    lin_map = np.linalg.inv(linear_map)
+    # (coord_matrix - origin) @ lin_map
+    return (coord_matrix - origin) @ lin_map
 
 
 def duovec_midpoint(v1, v2):

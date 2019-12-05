@@ -50,16 +50,17 @@ def detect_videos_in_hierarchy(video_root, deep_dict=False, video_dir_hierarchy=
                     # Create dictionary that signifies when
                     pair_vids = {}
                 for vid in glob(os.path.join(pair, '*.avi')):
-                    video_filename = Path(vid).stem
+                    vid_path = Path(vid)
+                    video_filename = vid_path.stem
                     pair_id, cam_id, cam, trial = video_filename.split('_')
 
                     if copy_video_dir is None:
                         vid_path = os.path.realpath(vid)
                     else:
                         new_video_dir = copy_video_dir / trial_name / pair_name
-                        if not os.exists(str(new_video_dir)):
+                        if not os.path.exists(str(new_video_dir)):
                             os.makedirs(new_video_dir)
-                        vid_path = new_video_dir / vid
+                        vid_path = new_video_dir / vid_path.name
                         copyfile(vid, vid_path)
                     videos.append(vid_path)
 

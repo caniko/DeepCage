@@ -369,7 +369,7 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, n
             
             # Compute number of rows_sep that will be allocated to respective figure
             fig_sep = plt.figure(figsize=(16, 8))       # sep -> separate
-            fig_sep.suptitle(roi)
+            fig_sep.suptitle(f'{exp_info}: {roi}')
 
             # Pair DFs
             for pair_idx, (pair, df_pair) in enumerate(pair_groups):

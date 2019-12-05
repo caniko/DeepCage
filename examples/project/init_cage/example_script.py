@@ -25,7 +25,7 @@ project_name = 'DeepCage_MROS_V1'
 experimenter = 'Can'
 root = os.path.realpath('H:/Can_cage/DeepCage_DLC_files')
 config_path = os.path.join(root, 'DeepCageKeyTest-Can-2019-11-15/config.yaml')
-normalize = True
+normalize = False
 # config_path = create_dlc_dc_projects(project_name, experimenter, root, dlc_config, calib_root, vid_format='avi')
 
 # calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None)

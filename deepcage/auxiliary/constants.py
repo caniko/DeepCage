@@ -11,7 +11,7 @@ CAMERAS = {
 
 """ Structure of information in CAMERAS var
 'CameraName': (
-    (Axis with visable negative and positive side, Location of positive side relative to origin and new origin),
+    (Axis with visable negative and positive side, Location of positive side relative to the new origin),
     (Axis with one side, Direction of the respective axis side),
     North->1; East->2; South->3; West->4
 )
