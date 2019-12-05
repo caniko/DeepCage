@@ -81,10 +81,10 @@ def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, 
             else:
                 trial_dir = results_path / 'triangulated' / exp_name
 
-            destfolder = trial_dir / ('%d_%s_%s' % (PAIR_IDXS[pair], *pair))
+            destfolder = str(trial_dir / ('%d_%s_%s' % (PAIR_IDXS[pair], *pair)))
             destfolders[pair].append(destfolder)
-            if not os.path.exists(destfolder):
-                os.makedirs(destfolder)
+            if not os.path.exists(os.path.realpath(destfolder)):
+                os.makedirs(os.path.realpath(destfolder))
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     for pair, dlc3d_cfg in dlc3d_cfgs.items():
