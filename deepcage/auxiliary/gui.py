@@ -1,7 +1,9 @@
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
-import pickle
 import gc
+
+import pickle
+from glob import glob
 import os
 
 from deepcage.project.edit import read_config
@@ -39,7 +41,7 @@ def get_coord(cam_image, n=-1, title=None):
     return pick
 
 
-def basis_label(config_path, image_paths=None, decrement=False):
+def basis_label(config_path, decrement=False, detect=True, name_pos=0, format='png', image_paths=None):
     '''
     Parameters
     ----------
@@ -50,23 +52,23 @@ def basis_label(config_path, image_paths=None, decrement=False):
         of the referance points taken with the camera
     '''
     if image_paths is None:
-        camera_images = detect_cage_calibration_images(config_path)
+        camera_images = detect_cage_calibration_images(config_path, name_pos=name_pos)
 
     n = -1
-    basis_labels = dict.fromkeys(CAMERAS)
-    for camera, axis in CAMERAS.items():
+    basis_labels = dict.fromkeys(camera_images.keys() if detect is True else CAMERAS.keys())
+    for camera in basis_labels.keys():
         cam_img = camera_images[camera]
 
         if decrement is True:
             basis_labels[camera] = (
-                {direction: [get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], direction, istip)) for istip in (True, False)] for direction in ('positive', 'negative')},
-                [get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], axis[1][1], istip)) for istip in (True, False)],
+                {direction: [get_coord(cam_img, n=n, title=get_title(camera, CAMERAS[camera][0][0], direction, istip)) for istip in (True, False)] for direction in ('positive', 'negative')},
+                [get_coord(cam_img, n=n, title=get_title(camera, CAMERAS[camera][1][0], CAMERAS[camera][1][1], istip)) for istip in (True, False)],
                 [get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', 'positive', istip)) for istip in (True, False)]
             )
         else:
             basis_labels[camera] = (
-                {direction: get_coord(cam_img, n=n, title=get_title(camera, axis[0][0], True, direction)) for direction in ('positive', 'negative')},
-                get_coord(cam_img, n=n, title=get_title(camera, axis[1][0], axis[1][1], True)),
+                {direction: get_coord(cam_img, n=n, title=get_title(camera, CAMERAS[camera][0][0], True, direction)) for direction in ('positive', 'negative')},
+                get_coord(cam_img, n=n, title=get_title(camera, CAMERAS[camera][1][0], CAMERAS[camera][1][1], True)),
                 get_coord(cam_img, n=n, title=get_title(camera, 'z-axis', 'positive', True)),
                 get_coord(cam_img, n=n, title='Select origin')
             )

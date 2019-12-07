@@ -79,7 +79,7 @@ def detect_videos_in_hierarchy(video_root, deep_dict=False, video_dir_hierarchy=
     return hierarchy, videos
 
 
-def detect_cage_calibration_images(config_path, img_format='png'):
+def detect_cage_calibration_images(config_path, img_format='png', name_pos=0):
     '''
     Detect images in calibration_images folder, and return a dictionary with their paths
 
@@ -95,7 +95,7 @@ def detect_cage_calibration_images(config_path, img_format='png'):
     
     cam_image_paths = {}
     for img in glob(os.path.join(image_dir, '*.'+img_format)):
-        img_camera_name = img.split('\\')[-1].split('_')[0]
+        img_camera_name = Path(img).stem.split('_')[name_pos]
 
         if img_camera_name in camera_names:
             cam_image_paths[img_camera_name] = os.path.realpath(img)
