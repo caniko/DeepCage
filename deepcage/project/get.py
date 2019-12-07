@@ -1,7 +1,19 @@
+from glob import glob
 import pickle
 import os
 
 from deepcage.auxiliary.constants import CAMERAS
+
+
+def get_triangulated_coords(config_path, undistored=True):
+    from .edit import read_config
+
+    cfg = read_config(config_path)
+    triangulate_path = os.path.join(cfg['results_path'], 'triangulated')
+    if not os.path.exists(triangulate_path) or 0 == len(glob(os.path.join(triangulate_path, '*'))):
+        raise ValueError(f'Could not detect triangulated coordinates in {triangulate_path}')
+
+    return triangulate_path
 
 
 def get_dlc3d_configs(config_path, read=False):

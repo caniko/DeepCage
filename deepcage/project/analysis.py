@@ -76,12 +76,10 @@ def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, 
             assert (pair_id1, session_trial1) == (pair_id2, session_trial2), fail_msg
             assert int(cam_pair_id1) == 0 and int(cam_pair_id2) == 1
 
-            if bonvideos is True:
-                trial_dir = results_path / 'triangulated' / ('%s_%s_%s' % (animal, trial, date))
-            else:
-                trial_dir = results_path / 'triangulated' / exp_name
+            triangulate_dir = results_path / ("undistorted" if undistort is True else "distored")  / 'triangulated'
+            trial_dir =  triangulate_dir / (f'{animal}_{trial}_{date}' if bonvideos is True else exp_name)
 
-            destfolder = str(trial_dir / ('%d_%s_%s' % (PAIR_IDXS[pair], *pair)))
+            destfolder = str(trial_dir / ('%d_%s_%s' % (PAIR_IDXS[pair], cam1, cam2)))
             destfolders[pair].append(destfolder)
             if not os.path.exists(os.path.realpath(destfolder)):
                 os.makedirs(os.path.realpath(destfolder))
@@ -101,7 +99,8 @@ def triangulate_dc_videos(config_path, video_root, gputouse=0, bonvideos=False, 
 
 
 def calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None, paralell=True):
-    from deeplabcut import calibrate_cameras
+    from deeplabcut.pose_estimation_3d import calibrate_cameras
+
     from .get import get_dlc3d_configs
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)

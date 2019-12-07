@@ -149,12 +149,14 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
     return stereo_cam_unit, orig_map
 
 
-def create_stereo_cam_origmap(config_path, decrement=False, save=True, **kwargs):
+def create_stereo_cam_origmap(config_path, undistort=True, decrement=False, save=True, **cbv_kwargs):
     '''
     Parameters
     ----------
     config_path : string
         Absolute path of the project config.yaml file.
+    cbv_kwargs : dictionary
+        Keyword arguments for compute_basis_vectors()
     '''
     cfg = read_config(config_path)
     dlc3d_cfgs = get_dlc3d_configs(config_path)
@@ -178,9 +180,9 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True, **kwargs)
     
         # Get triangulated points for computing basis vectors
         basis_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
-        trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=decrement)
+        trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, undistort=undistort, decrement=decrement)
 
-        stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement, **kwargs)
+        stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement, **cbv_kwargs)
 
     if save is True:
         with open(basis_result_path, 'wb') as outfile:
@@ -196,8 +198,8 @@ def create_stereo_cam_origmap(config_path, decrement=False, save=True, **kwargs)
 
 
 def map_experiment(
-        config_path, percentiles=(5, 95), use_saved_origmap=True, normalize=True,
-        suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False, **kwargs
+        config_path, undistort=True, percentiles=(5, 95), use_saved_origmap=True, normalize=True,
+        suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False, **cbv_kwargs
     ):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
@@ -210,13 +212,15 @@ def map_experiment(
         (3, 3) array that stores the linear map for changing basis
     suffix : string
         The suffix in the DeepLabCut 3D project triangualtion result storage files
+    cbv_kwargs : dictionary
+        Keyword arguments for compute_basis_vectors()
 
     Example
     -------
 
     '''
     coords = detect_triangulation_result(
-        config_path, suffix=suffix, change_basis=True, bonvideos=bonvideos
+        config_path, undistorted=undistort, suffix=suffix, change_basis=True, bonvideos=bonvideos
     )
     if coords is False:
         print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
@@ -239,7 +243,7 @@ def map_experiment(
             raise FileNotFoundError(msg)
     else:
         stereo_cam_units, orig_maps = create_stereo_cam_origmap(
-            config_path, decrement=False, save=False, normalize=normalize
+            config_path, undistort=undistort, decrement=False, save=False, normalize=normalize, **cbv_kwargs
         )
 
     dfs = {}

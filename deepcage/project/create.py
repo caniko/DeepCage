@@ -236,6 +236,49 @@ def create_dc_project(
     return conf_path
 
 
+def create_dlc3d_projects(name, experimenter, root, calib_root, dlc2d_config, image_format='png'):
+    from deepcage.auxiliary.detect import detect_dlc_calibration_images
+    from deeplabcut.utils.auxiliaryfunctions import write_config_3d
+    from deeplabcut.create_project import create_new_project_3d
+
+    from .utils import png_to_jpg
+    
+    if not isinstance(name, str):
+        raise ValueError('name must be string')
+    if not isinstance(experimenter, str):
+        raise ValueError('experimenter must be string')
+
+    dlc3d_project_configs = {}
+    for pair, calib_paths in detect_dlc_calibration_images(calib_root).items():
+        cam1, cam2 = pair
+
+        # Create DeepLabCut 3D project for the loop-defined stereo camera
+        name = '%d_%s_%s' % (PAIR_IDXS[pair], cam1, cam2)
+        dlc3d_project_configs[pair] = create_new_project_3d(name, experimenter, num_cameras=2, working_directory=root)
+
+        # Move calibration images to their respective DeepLabCut 3D project
+        project_path = Path(os.path.dirname(dlc3d_project_configs[pair]))
+        calibration_images_path = str(project_path / 'calibration_images')
+        if not os.path.exists(calibration_images_path):
+            os.makedirs(calibration_images_path)
+
+        if 'png' in image_format:
+            png_to_jpg(calibration_images_path, img_paths=calib_paths)
+        elif 'jpg' in image_format or 'jpeg' in image_format:
+            # TODO: Implement solution
+            pass
+
+        cfg = read_config(dlc3d_project_configs[pair])
+        cfg['config_file_camera-1'] = dlc2d_config
+        cfg['config_file_camera-2'] = dlc2d_config
+        cfg['camera_names'] = list(pair)
+        cfg['trainingsetindex_'+cam1] = cfg.pop('trainingsetindex_camera-1')
+        cfg['trainingsetindex_'+cam2] = cfg.pop('trainingsetindex_camera-2')
+        write_config_3d(dlc3d_project_configs[pair], cfg)
+
+    return dlc3d_project_configs
+
+
 def create_config_template():
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut

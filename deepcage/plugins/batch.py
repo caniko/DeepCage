@@ -13,10 +13,9 @@ from deepcage.project.create import create_dc_project
 from deepcage.project.edit import read_config
 
 
-
 def create_dlc_dc_projects(
         project_name, experimenter,
-        root, calib_root, video_root, dlc_config=None,
+        project_root, calib_root, video_root, dlc_config=None,
         video_dir_hierarchy=('trial', 'pair'), copy_videos=True, image_format='png'
     ):
     '''
@@ -31,10 +30,10 @@ def create_dlc_dc_projects(
         String containing the project_name of the project.
     experimenter : str
         String containing the project_name of the experimenter/scorer.
-    root : string
+    project_root : string
         Absolute path of to the directory where the new project files should be located
     calib_root : string
-        Absolute path of to the root directory storing the calibration files for each dlc 3D project
+        Absolute path of to the project_root directory storing the calibration files for each dlc 3D project
     dlc_config : string or None; default None
         Absolute path of to the dlc config.yaml file that will be used for the dlc 3D projects
     '''
@@ -42,19 +41,20 @@ def create_dlc_dc_projects(
     from deeplabcut.generate_training_dataset import extract_frames
     from deeplabcut.create_project import create_new_project_3d, create_new_project
     from deeplabcut.utils.auxiliaryfunctions import write_config_3d
-    from .create import create_dc_project
+
+    from .create import create_dc_project, create_dlc3d_projects
     from .utils import png_to_jpg
 
     if 'jpg' in image_format or 'jpeg' in image_format:
         raise ValueError('Not %s supported, yet' % image_format)
 
     if not os.path.exists(video_root):
-        raise ValueError('The path to the video root, does not exist:\n%s' % video_root)
+        raise ValueError('The path to the video project_root, does not exist:\n%s' % video_root)
     
-    if not os.path.exists(root):
-        raise ValueError('The given "root" does not exist:\n%s' % root)
+    if not os.path.exists(project_root):
+        raise ValueError('The given "project_root" does not exist:\n%s' % project_root)
 
-    root_path = Path(root) / project_name
+    root_path = Path(project_root) / project_name
     video_dir = root_path / 'videos'
 
     # Get videos
@@ -78,36 +78,56 @@ def create_dlc_dc_projects(
     if not os.path.exists(dlc3d_root):
         os.mkdir(dlc3d_root)
 
-    dlc3d_project_configs = {}
-    for pair, calib_paths in detect_dlc_calibration_images(calib_root).items():
-        cam1, cam2 = pair
-
-        # Create DeepLabCut 3D project for the loop-defined stereo camera
-        name = '%d_%s_%s' % (PAIR_IDXS[pair], cam1, cam2)
-        dlc3d_project_configs[pair] = create_new_project_3d(name, experimenter, num_cameras=2, working_directory=dlc3d_root)
-        project_path = Path(os.path.dirname(dlc3d_project_configs[pair]))
-
-        # Move calibration images to their respective DeepLabCut 3D project
-        calibration_images_path = project_path / 'calibration_images'
-        if not os.path.exists(calibration_images_path):
-            os.makedirs(calibration_images_path)
-
-        if 'png' in image_format:
-            png_to_jpg(calibration_images_path, img_paths=calib_paths)
-        elif 'jpg' in image_format or 'jpeg' in image_format:
-            # TODO: Implement solution
-            pass
-
-        # Re-define default config.yaml parameters to DeepCage standards
-        cfg = read_config(dlc3d_project_configs[pair])
-        cfg['config_file_camera-1'] = dlc_config
-        cfg['config_file_camera-2'] = dlc_config
-        cfg['camera_names'] = list(pair)
-        cfg['trainingsetindex_'+cam1] = cfg.pop('trainingsetindex_camera-1')
-        cfg['trainingsetindex_'+cam2] = cfg.pop('trainingsetindex_camera-2')
-        write_config_3d(dlc3d_project_configs[pair], cfg)
+    dlc3d_project_configs = create_dlc3d_projects(
+        project_name, experimenter, calib_root, dlc3d_root, dlc_config, image_format='png'
+    )
 
     config_path = create_dc_project(project_name, experimenter, dlc_config, dlc3d_project_configs, working_directory=root_path)
 
     calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9)
     return config_path
+
+
+def run_all_tests(
+        config_path, save=True, show=False,
+        # Triangulation settings
+        undistort=True, remap=True, normalize=True,
+        # Label settings
+        decrement=False, cm_is_real_idx=True
+    ):
+    '''Function for running all compute.test functions simultaniously'''
+
+    from matplotlib.pyplot import show
+    from deepcage.compute.test import (
+        visualize_workflow, visualize_triangulation, visualize_basis_vectors,
+        visualize_basis_vectors_single, plot_3d_trajectories
+    )
+
+    vw_figures_axes = visualize_workflow(
+        config_path, undistort=undistort, normalize=normalize, decrement=decrement, save=save
+    )
+    if show is True:
+        show()
+
+    vt_figures_axes = visualize_triangulation(config_path, undistort=undistort, decrement=decrement, save=save)
+    if show is True:
+        show()
+
+    bv__figures_axes = visualize_basis_vectors(
+        config_path, undistort=undistort, normalize=normalize, decrement=decrement, save=save
+    )
+    if show is True:
+        show()
+
+    bvs_figures_axes = visualize_basis_vectors_single(
+        config_path, undistort=undistort, normalize=normalize, decrement=decrement, save=save
+    )
+    if show is True:
+        show()
+
+    trajectory3d_figures_axes = plot_3d_trajectories(
+        config_path, undistort=undistort, cm_is_real_idx=cm_is_real_idx, cols=2, remap=remap,
+        normalize=normalize, use_saved_origmap=True, save=save
+    )
+    if show is True:
+        show()

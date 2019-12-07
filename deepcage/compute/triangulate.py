@@ -72,8 +72,6 @@ def triangulate_raw_2d_camera_coords(
             msg = 'Each image must have the same number of selections'
             raise ValueError(msg)
 
-
-
     cam1_coords = np.array(cam1_coords, dtype=np.float64)
     cam2_coords = np.array(cam2_coords, dtype=np.float64)
 
@@ -113,17 +111,15 @@ def triangulate_raw_2d_camera_coords(
     R2 = stereo_file[camera_pair_key]['R2']
     P2 = stereo_file[camera_pair_key]['P2']
 
-    if undistort:
-        cam1_undistorted_coords = cv2.undistortPoints(
+    if undistort is True:
+        cam1_coords = cv2.undistortPoints(
             src=cam1_coords, cameraMatrix=mtx_l, distCoeffs=dist_l, P=P1, R=R1
         )
-        cam2_undistorted_coords = cv2.undistortPoints(
+        cam2_coords = cv2.undistortPoints(
             src=cam2_coords, cameraMatrix=mtx_r, distCoeffs=dist_r, P=P2, R=R2
         )
-    else:
-        cam1_undistorted_coords = cam1_coords
-        cam2_undistorted_coords = cam2_coords
-    homogenous_coords = auxiliaryfunctions_3d.triangulatePoints(P1, P2, cam1_undistorted_coords, cam2_undistorted_coords)
+
+    homogenous_coords = auxiliaryfunctions_3d.triangulatePoints(P1, P2, cam1_coords, cam2_coords)
     triangulated_coords = np.array((homogenous_coords[0], homogenous_coords[1], homogenous_coords[2])).T
 
     if keys is not None:
@@ -132,7 +128,7 @@ def triangulate_raw_2d_camera_coords(
         return triangulated_coords
 
 
-def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, decrement=False, keys=False, undistort=True):
+def triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, undistort=True, decrement=False, keys=False):
     '''
     Using the labels from basis_label create 2d representations of the basis vectors for triangulation
 

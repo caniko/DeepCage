@@ -2,11 +2,10 @@ import matplotlib.pyplot as plt
 from pandas import read_hdf
 import numpy as np
 import vg
-
-from tqdm import tqdm
 import cv2
 
 import concurrent.futures
+from tqdm import tqdm
 import subprocess
 import pickle
 
@@ -25,7 +24,7 @@ from .basis import compute_basis_vectors, create_stereo_cam_origmap
 from .utils import rad_to_deg, unit_vector, equalise_3daxes, create_df_from_coords
 
 
-def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
+def visualize_workflow(config_path, undistort=True, normalize=True, decrement=False, save=True):
     '''
     Parameters
     ----------
@@ -74,7 +73,7 @@ def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
         # Triangulate the two sets of labels, and map them to 3D
         dlc3d_cfg = dlc3d_cfgs[pair]
         trian_dict, trian = triangulate_basis_labels(
-            dlc3d_cfg, cam_labels, pair, decrement=decrement, keys=True
+            dlc3d_cfg, cam_labels, pair, undistort=undistort, decrement=decrement, keys=True
         )
 
         cmap = iter(plt.cm.rainbow(np.linspace( 0, 1, len(trian_dict)+1) ))
@@ -130,7 +129,7 @@ def visualize_workflow(config_path, normalize=True, decrement=False, save=True):
     return fig, ax
 
 
-def visualize_triangulation(config_path, decrement=False, save=True):
+def visualize_triangulation(config_path, undistort=True, decrement=False, save=True):
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     basis_labels = get_labels(config_path)
 
@@ -156,7 +155,8 @@ def visualize_triangulation(config_path, decrement=False, save=True):
             dlc3d_cfg,
             cam1_coords=tuple(cam_labels[cam1].values()),
             cam2_coords=tuple(cam_labels[cam2].values()),
-            keys=cam_labels[cam1]
+            keys=cam_labels[cam1],
+            undistort=undistort
         )
 
         pair_ax[pair] = fig.add_subplot(2, 2, i+1, projection='3d')
@@ -181,14 +181,14 @@ def visualize_triangulation(config_path, decrement=False, save=True):
     return fig, pair_ax
 
 
-def visualize_basis_vectors(config_path, normalize=True, decrement=False, save=True):
+def visualize_basis_vectors(config_path, undistort=True, normalize=True, decrement=False, save=True):
     '''
     Parameters
     ----------
     config_path : string
         Absolute path of the project config.yaml file.
     '''
-    stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, normalize=normalize, decrement=decrement, save=False)
+    stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, undistort=undistort, normalize=normalize, decrement=decrement, save=False)
 
     cfg = read_config(config_path)
     dlc3d_cfgs = get_dlc3d_configs(config_path)
@@ -227,14 +227,16 @@ def visualize_basis_vectors(config_path, normalize=True, decrement=False, save=T
     return fig, ax_duo
 
 
-def visualize_basis_vectors_single(config_path, normalize=True, decrement=False, save=True):
+def visualize_basis_vectors_single(config_path, undistort=True, normalize=True, decrement=False, save=True):
     '''
     Parameters
     ----------
     config_path : string
         Absolute path of the project config.yaml file.
     '''
-    stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, normalize=normalize, decrement=False, save=False)
+    stereo_cam_units, orig_maps = create_stereo_cam_origmap(
+        config_path, undistort=undistort, normalize=normalize, decrement=False, save=False
+    )
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
 
@@ -292,7 +294,7 @@ def plot_2d_trajectories(config_path, cm_is_real_idx=True, save=True):
     pass
 
 
-def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, normalize=True, use_saved_origmap=True, save=True):
+def plot_3d_trajectories(config_path, undistort=True, cm_is_real_idx=True, cols=2, remap=True, normalize=True, use_saved_origmap=True, save=True):
     '''
     Parameters
     ----------
@@ -314,7 +316,7 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, n
         os.makedirs(tracjetory_dir)
 
     if remap is True:
-        dfs = map_experiment(config_path, save=False, use_saved_origmap=use_saved_origmap, normalize=normalize)
+        dfs = map_experiment(config_path, undistort=undistort, save=False, use_saved_origmap=use_saved_origmap, normalize=normalize)
     else:
         pass
         # basis_result_path = os.path.join(data_path, 'cb_result.pickle')
@@ -404,25 +406,31 @@ def plot_3d_trajectories(config_path, cm_is_real_idx=True, cols=2, remap=True, n
                         (coords[idx][0], coords[idx+delta][0]),
                         (coords[idx][1], coords[idx+delta][1]),
                         (coords[idx][2], coords[idx+delta][2]),
-                        '-', c=cmap_all[pair_idx]
+                        'x-', c=cmap_all[pair_idx], alpha=0.25
                     )
                     ax_sep[roi][pair].plot(
                         (coords[idx][0], coords[idx+delta][0]),
                         (coords[idx][1], coords[idx+delta][1]),
                         (coords[idx][2], coords[idx+delta][2]),
-                        'x-', c=cmap_sep[frame_ids[idx if cm_is_real_idx is True else meta_idx]]
+                        'x-', c=cmap_sep[frame_ids[idx if cm_is_real_idx is True else meta_idx]],
+                        alpha=0.25
                     )
 
             if save is True:
+                plt.tight_layout()
                 fig_sep.savefig(str( exp_dir / f'{roi}.png' ))
 
         if save is True:
             fig_all.savefig(str( exp_dir / 'all.png'))
 
+    if save is False:
+        plt.tight_layout()
+
     return (fig_all, ax_all), (fig_sep, ax_sep)
 
 
-def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy=False, remove_origin=False):
+def dlc3d_create_labeled_video(config_path, fps=20, undistort=True, video_root=None, video_dir_hierarchy=False,
+                               remove_origin=False):
     '''
     Augmented function from https://github.com/AlexEMG/DeepLabCut
 
@@ -434,12 +442,13 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
     start_path = os.getcwd()
 
     cfg = read_config(config_path)
-    triangulate_path = os.path.join(cfg['results_path'], 'triangulated')
+    result_path = Path(cfg['results_path'])
+    triangulate_path = result_path / ("undistorted" if undistort is True else "distorted") / 'triangulated'
+
     if not os.path.exists(triangulate_path) or 0 == len(glob(os.path.join(triangulate_path, '*'))):
         msg = f'Could not detect triangulated coordinates in {triangulate_path}'
         raise ValueError(msg)
-    triangulate_path = Path(triangulate_path)
-    
+
     if remove_origin is True:
         basis_result_path = os.path.join(cfg['data_path'], 'cb_result.pickle')
         try:
@@ -500,31 +509,32 @@ def dlc3d_create_labeled_video(config_path, video_root=None, video_dir_hierarchy
             cam1_videos = glob(os.path.join(video_root, (f'*{cam1}*')))
             cam2_videos = glob(os.path.join(video_root, (f'*{cam2}*')))
 
-            for i, v_path in enumerate(cam1_videos):
-                _, video_name = os.path.split(v_path)
-                cam1_video, cam2_video = cam1_videos[i], cam2_videos[i]
-                info = video_name.replace('.avi', '').split('_')
-                futures[create_video(
-                    # Paths
-                    triangulate_path, cam1_video, cam2_video,
-                    # ID
-                    info, pair,
-                    # Config
-                    dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
-                    bodyparts2plot, bodyparts2connect, color,
-                    # Style
-                    origin_to_remove=orig_maps[pair]['origin'] if remove_origin is True else None,
-                    new_path=True
-                )] = (*info, pair)
+            with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+                for i, v_path in enumerate(cam1_videos):
+                    _, video_name = os.path.split(v_path)
+                    cam1_video, cam2_video = cam1_videos[i], cam2_videos[i]
+                    info = video_name.replace('.avi', '').split('_')
+                    futures[executor.submit(create_video,
+                        # Paths
+                        triangulate_path, cam1_video, cam2_video,
+                        # ID
+                        info, pair,
+                        # Config
+                        dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
+                        bodyparts2plot, bodyparts2connect, color,
+                        # Style
+                        origin_to_remove=orig_maps[pair]['origin'] if remove_origin is True else None,
+                        new_path=True, fps=fps
+                    )] = (*info, pair)
 
-    # for future in concurrent.futures.as_completed(futures):
-    #     video_id = futures[future]
-    #     try:
-    #         result = future.result()
-    #     except Exception as exc:
-    #         print('%s generated an exception: %s' % (video_id, exc))
-    #     else:
-    #         print('%s = %s' % (video_id, result))
+    for future in concurrent.futures.as_completed(futures):
+        video_id = futures[future]
+        try:
+            result = future.result()
+        except Exception as exc:
+            print('%s generated an exception: %s' % (video_id, exc))
+        else:
+            print('%s = %s' % (video_id, result))
 
     os.chdir(start_path)
 
@@ -538,7 +548,7 @@ def create_video(
         dlc3d_cfg, pcutoff, markerSize, alphaValue, cmap, skeleton_color, scorer_3d,
         bodyparts2plot, bodyparts2connect, color,
         # Style
-        origin_to_remove=None, new_path=True
+        origin_to_remove=None, new_path=True, fps=20
     ):
     cam1, cam2 = pair
 
@@ -560,6 +570,20 @@ def create_video(
 
     vid_cam1 = cv2.VideoCapture(cam1_video)
     vid_cam2 = cv2.VideoCapture(cam2_video)
+
+    # frames_1 = vid_cam1.get(7)
+    # frames_2 = vid_cam2.get(7)
+    # frame_diff = frames_1 - frames_2
+    # print(f'There are {frame_diff} frames more in video_1')
+    # user_input = None
+    # if abs(frame_diff) > fps * 2:
+    #     master_num = 1 if frame_diff > 0 else 2
+    #     if master_video_userinput is True:
+    #         user_input = input(f'Would you like to make video_{master_num} master over the other video? y/n')
+
+    #     if master_video_userinput is False or user_input.capitalize() == 'Y':
+    #         vid_cam1.set(1, (frames_1 if cam1_frame_id is None else frames_1))
+    #         vid_cam2.set(1, (frames_2 if cam2_frame_id is None else frames_2))
 
     if origin_to_remove is not None:
         for roi, df_roi in xyz_df['DLC_3D'].groupby(level=0, axis=1):
@@ -587,9 +611,9 @@ def create_video(
         subprocess.call([
             'ffmpeg',
             '-start_number', '0',
-            '-framerate', '30',
+            '-framerate', str(fps), '-r', str(fps),
             '-i', f'img%0{num_frames}d.png',
-            '-r', '30', '-vb', '20M',
+            '-vb', '20M',
             os.path.join(output_folder, f'../{file_name}.mpg'),
         ])
         os.chdir(cwd)

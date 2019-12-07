@@ -16,35 +16,40 @@ from deepcage.compute import (
     map_experiment
 )
 import matplotlib.pyplot as plt
+
+from pathlib import Path
 import os
 
 
 VIDEO_ROOT = os.path.realpath('H:/Can_cage/BonsaiRecordings/MROS_V1')
+ROOT = Path('H:/Can_cage/DeepCageProjects/Projects')
 
-project_name = 'DeepCage_MROS_V1'
+project = ROOT / 'PenTrack'
+dc_config = str(project / 'PenTrack-Can-2019-12-04' / 'normal' / 'config.yaml')
+
+project_name = 'PenTrack'
 experimenter = 'Can'
-root = os.path.realpath('H:/Can_cage/DeepCage_DLC_files')
-config_path = os.path.join(root, 'DeepCageKeyTest-Can-2019-11-15/config.yaml')
+
+undistort = False
 normalize = False
-# config_path = create_dlc_dc_projects(project_name, experimenter, root, dlc_config, calib_root, vid_format='avi')
+# dc_config = create_dlc_dc_projects(project_name, experimenter, root, dlc_config, calib_root, vid_format='avi')
 
-# calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None)
-# calibrate_dlc_cameras(config_path, cbrow=9, cbcol=6, calibrate=True, alpha=0.9, skip=None)
+# calibrate_dlc_cameras(dc_config, cbrow=9, cbcol=6, calibrate=False, alpha=0.9, skip=None)
+# calibrate_dlc_cameras(dc_config, cbrow=9, cbcol=6, calibrate=True, alpha=0.9, skip=None)
 
-# triangulate_bonvideos(config_path, VIDEO_ROOT, gputouse=0, vformat='avi')
-# detect_triangulation_result(config_path)
+# triangulate_bonvideos(dc_config, VIDEO_ROOT, gputouse=0, vformat='avi')
+# detect_triangulation_result(dc_config)
 
-# create_stereo_cam_origmap(config_path)
-# visualize_triangulation(config_path)
+# create_stereo_cam_origmap(dc_config)
+# visualize_triangulation(dc_config)
 
-# df = map_experiment(config_path, paralell=False)
+# df = map_experiment(dc_config, paralell=False)
 (fig_all, ax_all), (fig_sep, ax_sep) = plot_3d_trajectories(
-    config_path,  cm_is_real_idx=True, remap=True, cols=2, normalize=normalize, use_saved_origmap=False
+    dc_config, undistort=undistort, cm_is_real_idx=True, remap=True, cols=2, normalize=normalize, use_saved_origmap=False
 )
-# ax = visualize_workflow(config_path, normalize=normalize)
-# visualize_basis_vectors(config_path, normalize=normalize)
-# fig, ax = visualize_basis_vectors_single(config_path, normalize=normalize)
-plt.show()
+# ax = visualize_workflow(dc_config, undistort=undistort, normalize=normalize)
+# visualize_basis_vectors(dc_config, undistort=undistort, normalize=normalize)
+# fig, ax = visualize_basis_vectors_single(dc_config, undistort=undistort, normalize=normalize)
+# plt.show()
 
-
-# dlc3d_create_labeled_video(config_path)
+# dlc3d_create_labeled_video(dc_config)

@@ -47,7 +47,6 @@ def detect_videos_in_hierarchy(video_root, deep_dict=False, video_dir_hierarchy=
             for pair in glob(os.path.join(trial, '*/')):
                 pair_name = str(Path(pair).stem)
                 if deep_dict is True:
-                    # Create dictionary that signifies when
                     pair_vids = {}
                 for vid in glob(os.path.join(pair, '*.avi')):
                     vid_path = Path(vid)
@@ -115,7 +114,7 @@ def detect_dlc_calibration_images(root, img_format='png'):
     return result
 
 
-def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=False, bonvideos=False):
+def detect_triangulation_result(config_path, undistorted=True, suffix='_DLC_3D.h5', change_basis=False, bonvideos=False):
     '''
     This function detects and returns the state of deeplabcut-triangulated coordinate h5 files (can be changed)
 
@@ -146,7 +145,7 @@ def detect_triangulation_result(config_path, suffix='_DLC_3D.h5', change_basis=F
     dlc3d_cfgs = get_dlc3d_configs(config_path)
 
     results_path = Path(cfg['results_path'])
-    triangulated = results_path / 'triangulated'
+    triangulated = results_path / ('undistorted' if undistorted is True else 'distorted') / 'triangulated'
     experiments = glob(str(triangulated / '*/'))
     if experiments == []:
         msg = 'Could not find any triangulated coordinates in %s' % triangulated
