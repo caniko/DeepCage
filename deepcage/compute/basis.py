@@ -228,9 +228,10 @@ def map_experiment(
     -------
 
     '''
-    coords = detect_triangulation_result(
+    coords, likelihoods = detect_triangulation_result(
         config_path, undistorted=undistort, suffix=suffix, change_basis=True, bonvideos=bonvideos
     )
+    print(likelihoods)
     if coords is False:
         print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
         return False
@@ -322,8 +323,8 @@ def sort_coords_in_df(pair_roi_df, orig_maps, remap=True, percentiles=None):
                 x, y, z = coords.T
 
             pre_df[(roi, pair, 'x')] = pd.Series(x)
-            pre_df[(roi, pair, 'y')] = pd.Series(z)
-            pre_df[(roi, pair, 'z')] = pd.Series(y)
+            pre_df[(roi, pair, 'y')] = pd.Series(y)
+            pre_df[(roi, pair, 'z')] = pd.Series(z)
             columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
     df = pd.DataFrame.from_dict(pre_df, orient='columns').sort_index(axis=1, level=0)
     return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]

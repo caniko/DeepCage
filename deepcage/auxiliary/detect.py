@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from shutil import copyfile
 from copy import copy
@@ -114,7 +115,7 @@ def detect_dlc_calibration_images(root, img_format='png'):
     return result
 
 
-def detect_triangulation_result(config_path, undistorted=True, suffix='_DLC_3D.h5', change_basis=False, bonvideos=False):
+def detect_triangulation_result(config_path, filter_low_likelihood=True, pcutoff=0.1, undistorted=True, suffix='_DLC_3D.h5', change_basis=False, bonvideos=False):
     '''
     This function detects and returns the state of deeplabcut-triangulated coordinate h5 files (can be changed)
 
@@ -132,7 +133,6 @@ def detect_triangulation_result(config_path, undistorted=True, suffix='_DLC_3D.h
 
     '''
 
-    print(suffix)
     suffix_split = suffix.split('.')
     if len(suffix_split) > 1:
         if suffix_split[-1] != 'h5':
@@ -154,18 +154,19 @@ def detect_triangulation_result(config_path, undistorted=True, suffix='_DLC_3D.h
     # Detect triangulation results in related DeepLabCut 3D projects
     # Analyse the number of occurances of hdf across projects
     missing = 0
-    status, coords, pairs = {}, {}, {}
+    status, coords, likelihoods, pairs = {}, {}, {}, {}
     for exp_path in experiments:
         exp_dir_name = os.path.basename(exp_path)
         if bonvideos is True:
             animal, trial, date = exp_dir_name.split('_')
-            coords[(animal, trial, date)] = {}
+            coords[(animal, trial, date)], likelihoods[(animal, trial, date)] = {}, {}
         else:
-            coords[exp_dir_name] = {}
+            coords[exp_dir_name], likelihoods[exp_dir_name] = {}, {}
 
         regions_of_interest = {}
         for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
-            pair_info = os.path.basename(os.path.dirname(hdf_path)).split('_')
+            pair_dir = os.path.dirname(hdf_path)
+            pair_info = os.path.basename(pair_dir).split('_')
             if len(pair_info) == 2:
                 cam1, cam2 = pair_info
             else:
@@ -176,11 +177,38 @@ def detect_triangulation_result(config_path, undistorted=True, suffix='_DLC_3D.h
             exp_regions_of_interest = df.columns.levels[0]
             regions_of_interest[pair] = exp_regions_of_interest
 
-            coord = {roi: df[roi].values for roi in exp_regions_of_interest}
+            if filter_low_likelihood is True:
+                try:
+                    cam1_prediction_2d = pd.read_hdf(glob(os.path.join(pair_dir, f'*{cam1}*filtered.h5'))[0])
+                    cam2_prediction_2d = pd.read_hdf(glob(os.path.join(pair_dir, f'*{cam2}*filtered.h5'))[0])
+                except FileNotFoundError:
+                    print("No filtered predictions found. Will use the unfiltered predictions.")
+                    cam1_prediction_2d = pd.read_hdf(glob(os.path.join(pair_dir, f'*{cam1}*.h5'))[0])
+                    cam2_prediction_2d = pd.read_hdf(glob(os.path.join(pair_dir, f'*{cam2}*.h5'))[0])
+
+                coord, roi_likelihood = {}, {}
+                for roi in exp_regions_of_interest:
+                    cam1_likelihood = cam1_prediction_2d[ cam1_prediction_2d.keys()[0][0] ][roi]['likelihood'].values
+                    cam2_likelihood = cam2_prediction_2d[ cam2_prediction_2d.keys()[0][0] ][roi]['likelihood'].values
+
+                    coord_likelihood = np.dstack((cam1_likelihood, cam2_likelihood))[0]
+                    coord_idxs = np.all(coord_likelihood < pcutoff, axis=1)
+                    df[roi].loc[coord_idxs] = np.nan
+
+                    coord[roi] = df[roi].values
+                    roi_likelihood[roi] = coord_likelihood
+            else:
+                coord = {roi: df[roi].values for roi in exp_regions_of_interest}
+
             if bonvideos is True:
                 coords[(animal, trial, date)][pair] = coord
+
+                if filter_low_likelihood is True:
+                    likelihoods[(animal, trial, date)][pair] = roi_likelihood
             else:
                 coords[exp_dir_name][pair] = coord
+                if filter_low_likelihood is True:
+                    likelihoods[exp_dir_name][pair] = roi_likelihood
         # print(1)
         # print(all([exp_regions_of_interest == rsoi for rsoi in regions_of_interest]))
 
@@ -199,7 +227,7 @@ def detect_triangulation_result(config_path, undistorted=True, suffix='_DLC_3D.h
             print('Proceeding to changing basis')
         else:
             print('The current DeepCage project is ready for changing basis')
-        return coords
+        return coords, likelihoods if filter_low_likelihood is True else coords
     else:
         if missing == 1:
             msg = 'Inconsistencies in regions of interest was found in one experiment'
@@ -244,8 +272,6 @@ def detect_2d_coords(config_path, suffix='filtered.h5', bonvideos=False):
             coords[exp_dir_name] = {}
 
         regions_of_interest = {}
-        print(str(exp_path))
-        print(glob(os.path.join(exp_path, '**/*'+suffix)))
         for hdf_path in glob(os.path.join(exp_path, '**/*'+suffix)):
             pair_info = os.path.basename(os.path.dirname(hdf_path)).split('_')
             if len(pair_info) == 2:
