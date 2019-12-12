@@ -34,10 +34,11 @@ def change_basis_func(coord_matrix, linear_map, origin, axis_lenght, calibrator_
     assert linear_map.shape == (3, 3)
 
     assert isinstance(calibrator_lenght, (int, float))
-    assert isinstance(axis_lenght, (int, float))
+    # assert isinstance(axis_lenght, (int, float))
 
     # subtract "new origin" -> change basis -> divide by mean axis_length
-    return calibrator_lenght * (((coord_matrix - origin) @ linear_map) / axis_lenght)
+    return calibrator_lenght * (
+        ((coord_matrix - origin) @ linear_map) / axis_lenght )
 
 
 def duovec_midpoint(v1, v2):

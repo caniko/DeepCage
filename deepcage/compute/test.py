@@ -181,14 +181,15 @@ def visualize_triangulation(config_path, undistort=True, decrement=False, save=T
     return fig, pair_ax
 
 
-def visualize_basis_vectors(config_path, undistort=True, normalize=True, decrement=False, save=True):
+def visualize_basis_vectors(config_path, undistort=True, normalize=True, decrement=False, stereo_cam_units=None, save=True):
     '''
     Parameters
     ----------
     config_path : string
         Absolute path of the project config.yaml file.
     '''
-    stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, undistort=undistort, normalize=normalize, decrement=decrement, save=False)
+    if stereo_cam_units is None:
+        stereo_cam_units, orig_maps = create_stereo_cam_origmap(config_path, undistort=undistort, normalize=normalize, decrement=decrement, save=False)
 
     cfg = read_config(config_path)
     dlc3d_cfgs = get_dlc3d_configs(config_path)
@@ -227,16 +228,17 @@ def visualize_basis_vectors(config_path, undistort=True, normalize=True, decreme
     return fig, ax_duo
 
 
-def visualize_basis_vectors_single(config_path, undistort=True, normalize=True, decrement=False, save=True):
+def visualize_basis_vectors_single(config_path, undistort=True, normalize=True, decrement=False, stereo_cam_units=None, save=True):
     '''
     Parameters
     ----------
     config_path : string
         Absolute path of the project config.yaml file.
     '''
-    stereo_cam_units, orig_maps = create_stereo_cam_origmap(
-        config_path, undistort=undistort, normalize=normalize, decrement=False, save=False
-    )
+    if stereo_cam_units is None:
+        stereo_cam_units, orig_maps = create_stereo_cam_origmap(
+            config_path, undistort=undistort, normalize=normalize, decrement=False, save=False
+        )
 
     dlc3d_cfgs = get_dlc3d_configs(config_path)
 
@@ -294,7 +296,10 @@ def plot_2d_trajectories(config_path, cm_is_real_idx=True, save=True):
     pass
 
 
-def plot_3d_trajectories(config_path, undistort=True, cm_is_real_idx=True, cols=2, remap=True, normalize=True, use_saved_origmap=True, save=True):
+def plot_3d_trajectories(
+    config_path, undistort=True, cm_is_real_idx=True, cols=2, dfs=None, remap=True,
+    normalize=True, use_saved_origmap=True, save=True
+):
     '''
     Parameters
     ----------
@@ -315,22 +320,14 @@ def plot_3d_trajectories(config_path, undistort=True, cm_is_real_idx=True, cols=
     if not os.path.exists(tracjetory_dir):
         os.makedirs(tracjetory_dir)
 
-    if remap is True:
-        dfs = map_experiment(config_path, undistort=undistort, save=False, use_saved_origmap=use_saved_origmap, normalize=normalize)
-    else:
-        pass
-        # basis_result_path = os.path.join(data_path, 'cb_result.pickle')
-        # try:
-        #     with open(basis_result_path, 'rb') as infile:
-        #         stereo_cam_units, orig_maps = pickle.load(infile)
-        # except FileNotFoundError:
-        #     msg = f'Could not detect results from deepcage.compute.generate_linear_map() in:\n{basis_result_path}' 
-        #     raise FileNotFoundError(msg)
-
-        # dfs = create_df_from_coords(detect_triangulation_result(config_path, change_basis=False))
-        # if dfs is False:
-        #     print('According to the DeepCage triangulated coordinates detection algorithm this project is not ready for changing basis')
-        #     return False
+    if dfs is None:
+        if remap is True:
+            dfs = map_experiment(
+                config_path, undistort=undistort, save=False,
+                use_saved_origmap=use_saved_origmap,normalize=normalize
+            )
+        else:
+            dfs = detect_triangulation_result(config_path, undistorted=undistort)
 
     # Experimen DFs
     for exp_info, df in dfs.items():

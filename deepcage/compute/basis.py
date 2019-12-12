@@ -34,7 +34,7 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
             else:
                 origin = trian[1] + (trian[0] - trian[1]) / 2
                 z_axis = trian[3] - origin
-                axis_1st = origin - trian[1]
+                axis_1st = trian[1] - origin
                 axis_2nd = np.cross(z_axis, axis_1st)
 
             if CAMERAS[cam2][1][1] == 'positive':
@@ -76,7 +76,7 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
             else:
                 origin = trian[1] + (trian[0] - trian[1]) / 2
                 z_axis = trian[3] - origin
-                axis_1st = origin - trian[1]
+                axis_1st = trian[1] - origin
                 axis_2nd = np.cross(z_axis, axis_1st)
 
             if CAMERAS[cam2][1][1] == 'positive':
@@ -99,7 +99,7 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
                 alt_axis_2nd = origin - trian[2]
     
     # Calculate axis_len before potential normalization
-    axis_len = np.mean((norm(axis_1st), norm(alt_axis_2nd), norm(z_axis)))
+    axis_len = np.array( (norm(axis_1st), norm(alt_axis_2nd), norm(z_axis)) )
 
     if normalize is True:
         axis_1st = unit_vector(axis_1st)
@@ -149,7 +149,10 @@ def compute_basis_vectors(trian, pair, use_cross=True, normalize=True, decrement
     return stereo_cam_unit, orig_map
 
 
-def create_stereo_cam_origmap(config_path, undistort=True, decrement=False, save=True, **cbv_kwargs):
+def create_stereo_cam_origmap(
+    config_path, undistort=True, decrement=False, save=True, labels_are2d=True,
+    labels_getter=get_paired_labels, basis_computer=compute_basis_vectors, **cbv_kwargs
+):
     '''
     Parameters
     ----------
@@ -158,6 +161,7 @@ def create_stereo_cam_origmap(config_path, undistort=True, decrement=False, save
     cbv_kwargs : dictionary
         Keyword arguments for compute_basis_vectors()
     '''
+
     cfg = read_config(config_path)
     dlc3d_cfgs = get_dlc3d_configs(config_path)
     data_path = os.path.realpath(cfg['data_path'])
@@ -177,12 +181,17 @@ def create_stereo_cam_origmap(config_path, undistort=True, decrement=False, save
     for pair in pairs:
         cam1, cam2 = pair
         dlc3d_cfg = dlc3d_cfgs[pair]
-    
-        # Get triangulated points for computing basis vectors
-        basis_labels = get_paired_labels(config_path, pair)['decrement' if decrement is True else 'normal']
-        trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, undistort=undistort, decrement=decrement)
 
-        stereo_cam_units[pair], orig_maps[pair] = compute_basis_vectors(trian, pair, decrement=decrement, **cbv_kwargs)
+        basis_labels = labels_getter(config_path, pair)
+        if labels_getter is get_paired_labels:
+            basis_labels = basis_labels['decrement' if decrement is True else 'normal']
+
+        if labels_are2d is True:
+            trian = triangulate_basis_labels(dlc3d_cfg, basis_labels, pair, undistort=undistort, decrement=decrement)
+        else:
+            trian = basis_labels
+
+        stereo_cam_units[pair], orig_maps[pair] = basis_computer(trian, pair, decrement=decrement, **cbv_kwargs)
 
     if save is True:
         with open(basis_result_path, 'wb') as outfile:
@@ -198,9 +207,9 @@ def create_stereo_cam_origmap(config_path, undistort=True, decrement=False, save
 
 
 def map_experiment(
-        config_path, undistort=True, percentiles=(5, 95), use_saved_origmap=True, normalize=True,
-        suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False, **cbv_kwargs
-    ):
+    config_path, undistort=True, percentiles=(5, 95), use_saved_origmap=True, normalize=True,
+    suffix='_DLC_3D.h5', bonvideos=False, save=True, paralell=False, label_getter=None, **kwargs
+):
     '''
     This function changes the basis of deeplabcut-triangulated that are 3D.
 
@@ -243,7 +252,7 @@ def map_experiment(
             raise FileNotFoundError(msg)
     else:
         stereo_cam_units, orig_maps = create_stereo_cam_origmap(
-            config_path, undistort=undistort, decrement=False, save=False, normalize=normalize, **cbv_kwargs
+            config_path, undistort=undistort, decrement=False, save=False, normalize=normalize, **kwargs
         )
 
     dfs = {}
@@ -251,7 +260,7 @@ def map_experiment(
     if paralell is False or cpu_cores < 2:
         for info, pair_roi_df in coords.items():
             # info = (animal, trial, date)
-            dfs[info] = map_coords(pair_roi_df, orig_maps, percentiles)
+            dfs[info] = sort_coords_in_df(pair_roi_df, orig_maps, percentiles)
 
     else:
         submissions = {}
@@ -259,7 +268,7 @@ def map_experiment(
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
             for info, pair_roi_df in coords.items():
                 # info = (animal, trial, date)
-                submissions[executor.submit(map_coords, pair_roi_df, orig_maps)] = info
+                submissions[executor.submit(sort_coords_in_df, pair_roi_df, orig_maps)] = info
 
             for future in submissions:
                 info = submissions[future]
@@ -289,7 +298,7 @@ def map_experiment(
     return dfs
 
 
-def map_coords(pair_roi_df, orig_maps, percentiles=None):
+def sort_coords_in_df(pair_roi_df, orig_maps, remap=True, percentiles=None):
     '''
     Helper function for map_experiment()
     '''
@@ -302,16 +311,19 @@ def map_coords(pair_roi_df, orig_maps, percentiles=None):
     for pair in pair_order:
         roi_df = pair_roi_df[pair]
         for roi, coords in roi_df.items():
-            x, y, z = change_basis_func(
-                coords,
-                orig_maps[pair]['map'],
-                orig_maps[pair]['origin'],
-                orig_maps[pair]['axis_len']
-            ).T
+            if remap is True:
+                x, y, z = change_basis_func(
+                    coords,
+                    orig_maps[pair]['map'],
+                    orig_maps[pair]['origin'],
+                    orig_maps[pair]['axis_len']
+                ).T
+            else:
+                x, y, z = coords.T
 
             pre_df[(roi, pair, 'x')] = pd.Series(x)
-            pre_df[(roi, pair, 'y')] = pd.Series(y)
-            pre_df[(roi, pair, 'z')] = pd.Series(z)
+            pre_df[(roi, pair, 'y')] = pd.Series(z)
+            pre_df[(roi, pair, 'z')] = pd.Series(y)
             columns.extend(( (roi, pair, 'x'), (roi, pair, 'y'), (roi, pair, 'z') ))
     df = pd.DataFrame.from_dict(pre_df, orient='columns').sort_index(axis=1, level=0)
     return df.loc[np.logical_not(np.all(np.isnan(df.values), axis=1))]

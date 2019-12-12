@@ -46,7 +46,6 @@ def get_paired_labels(config_path, pair):
     
     labels = get_labels(config_path)
     raw_cam1v, raw_cam2v = labels[cam1], labels[cam2]
-    raw_cam1v[0]['positive']
 
     if CAMERAS[cam1][2] == CAMERAS[cam2][2]:
         assert CAMERAS[cam1] == CAMERAS[cam2], '%s != %s' % (CAMERAS[cam1], CAMERAS[cam2])
@@ -59,7 +58,7 @@ def get_paired_labels(config_path, pair):
             cam1: {
                 (CAMERAS[cam1][0][0], 'positive'): raw_cam1v[0]['positive'],    # NorthNorth: x-axis
                 (CAMERAS[cam1][0][0], 'negative'): raw_cam1v[0]['negative'],
-                CAMERAS[cam1][1]: raw_cam1v[1],                                     # NorthNorth: y-axis
+                CAMERAS[cam1][1]: raw_cam1v[1],                                 # NorthNorth: y-axis
                 'z-axis': raw_cam1v[2],
                 'origin': raw_cam1v[3]
             },
